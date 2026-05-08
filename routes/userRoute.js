@@ -1,4 +1,5 @@
 import {Router} from 'express';
+import { authMiddleware } from "../middlewares/auth.middlewares.js";
 // importando as funções do UserController para serem usadas nas rotas
 import{
   getUsers,
@@ -20,7 +21,7 @@ const router = Router(); // criando uma instância do Router do express
  *         description: Lista de usuários
  */
 
-router.get("/", getUsers);
+router.get("/",authMiddleware, getUsers);
 
 /**
  * @openapi
