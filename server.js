@@ -26,22 +26,29 @@ import express from "express";
 import userRoutes from "./routes/userRoute.js";
 import specs from "./docs/openapi.js";
 import swaggerUi from "swagger-ui-express";
+import authRoutes from "./routes/auth.route.js";
 
 const app = express(); // criando o servidor express
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-//Middleware para ler o corpo da requisição em formato json
+// middleware json
 app.use(express.json());
 
-//importando as rotas do userRoute e usando elas no servidor
+// rotas de autenticação
+app.use("/auth", authRoutes);
+
+// rotas de usuários
 app.use("/users", userRoutes);
 
 app.get("/", (req, res)=>{
   res.send("Api rodando com express"); 
 });
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs)); //rota do swagger 
+// rota da documentação
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs));
 
-//Inicia o servidor na porta 3333
+// inicia servidor
 app.listen(3333, ()=>{
   console.log("Servidor rodando na porta 3333");
 });

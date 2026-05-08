@@ -1,3 +1,4 @@
+import jwt from "jsonwebtoken"; // importando jsonwebtoken para criar tokens de autenticação
 // criando um array para armazenar os usuários sem banco de dados
 let users = [];
 
