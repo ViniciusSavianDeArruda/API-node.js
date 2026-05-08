@@ -86,15 +86,25 @@ router.post("/", (req, res) => {
 
 ### Middleware
 
-Middleware é uma função que fica **no meio** do caminho entre a requisição e a resposta. Ela pode modificar o `req`, o `res`, ou simplesmente processar algo antes de passar para o próximo passo.
+Middleware é uma função que fica **no meio** do caminho entre a requisição e a resposta. Ela pode modificar o `req`, o `res`, chamar o próximo middleware com `next()`, ou encerrar a requisição.
 
 ```javascript
 app.use(express.json());
 ```
 
-Nesse caso, `express.json()` é um middleware que lê o corpo da requisição e converte o JSON em um objeto JavaScript antes de chegar no seu controller. Sem ele, `req.body` seria `undefined`.
+`express.json()` é um middleware nativo do Express que lê o corpo da requisição e converte o JSON em um objeto JavaScript antes de chegar no seu controller. Sem ele, `req.body` seria `undefined`.
 
-O `app.use()` serve para registrar middlewares e rotas no servidor. Tudo que passar por ali vai ser executado para toda requisição.
+Um middleware sempre recebe três parâmetros: `req`, `res` e `next`. O `next()` é uma função que diz ao Express para continuar para o próximo passo. Se você não chamar `next()`, a requisição fica parada.
+
+```javascript
+// Exemplo de middleware personalizado
+const meuMiddleware = (req, res, next) => {
+  console.log("Passou pelo middleware");
+  next(); // continua para a rota
+};
+```
+
+O `app.use()` serve para registrar middlewares e rotas no servidor. Tudo que passar por ali vai ser executado na ordem em que foi registrado.
 
 ---
 
@@ -146,12 +156,12 @@ const { id } = req.params;
 
 O Express tem diferentes métodos no `res` para enviar a resposta:
 
-| Método          | Quando usar                                              |
-|-----------------|----------------------------------------------------------|
-| `res.json()`    | Retornar dados em formato JSON (mais comum em APIs)      |
-| `res.send()`    | Retornar texto simples ou HTML                           |
-| `res.status()`  | Definir o status code antes de enviar (encadeável)       |
-| `res.sendStatus()` | Enviar apenas o status code, sem corpo             |
+| Método               | Quando usar                                              |
+|----------------------|----------------------------------------------------------|
+| `res.json()`         | Retornar dados em formato JSON (mais comum em APIs)      |
+| `res.send()`         | Retornar texto simples ou HTML                           |
+| `res.status()`       | Definir o status code antes de enviar (encadeável)       |
+| `res.sendStatus()`   | Enviar apenas o status code, sem corpo                   |
 
 ```javascript
 res.json(users);                    // 200 + dados em JSON
@@ -161,20 +171,81 @@ res.sendStatus(204);                // 204 sem corpo
 
 ---
 
+## Autenticação com JWT
+
+### O que é JWT
+
+**JWT** (JSON Web Token) é um padrão para transmitir informações de forma segura entre cliente e servidor. Ele é usado para autenticação: o cliente faz login, recebe um token, e manda esse token em todas as próximas requisições para provar que está autenticado.
+
+Um token JWT tem três partes separadas por ponto:
+
+```
+header.payload.signature
+
+eyJhbGciOiJIUzI1NiJ9 . eyJlbWFpbCI6ImFkbWluIn0 . xSKsNMJtR3sQBHc6F7...
+     header                    payload                    signature
+```
+
+- **Header** — informa o algoritmo usado
+- **Payload** — os dados que você colocou no token (como o email do usuário)
+- **Signature** — garante que o token não foi alterado, gerada com a secret-key
+
+O token **não é criptografado**, apenas assinado. Isso significa que qualquer um pode ler o payload, mas não pode alterar sem invalidar a assinatura. Nunca coloque senhas no payload.
+
+---
+
+### Fluxo de autenticação
+
+```
+1. Cliente manda email e senha para POST /auth/login
+2. Servidor valida as credenciais
+3. Servidor gera um token JWT e devolve para o cliente
+4. Cliente guarda o token
+5. Cliente manda o token no header Authorization em toda requisição protegida
+6. Servidor valida o token antes de permitir o acesso
+```
+
+O header de autorização segue o padrão **Bearer Token**:
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+```
+
+---
+
+### try/catch
+
+O `try/catch` é usado para lidar com erros que podem acontecer durante a execução. No caso do JWT, a função `jwt.verify()` lança um erro se o token for inválido, então usamos try/catch para capturar esse erro e devolver uma resposta adequada.
+
+```javascript
+try {
+  // tenta executar esse bloco
+  jwt.verify(token, "secret-key");
+  next(); // se chegou aqui, o token é válido
+} catch (error) {
+  // se der erro, cai aqui
+  return res.status(401).json({ message: "Token inválido" });
+}
+```
+
+---
+
 ## Estrutura do Projeto
 
 ```
 projeto/
-├── server.js           — ponto de entrada, configura e inicia o servidor
+├── server.js                        — ponto de entrada, configura e inicia o servidor
 ├── routes/
-│   └── userRoute.js    — define os endpoints e conecta ao controller
+│   ├── auth.route.js                — rota de login
+│   └── userRoute.js                 — rotas de usuários (protegidas)
 ├── controllers/
-│   └── UserController.js — contém a lógica de cada operação
+│   ├── authController.js            — lógica de autenticação
+│   └── UserController.js            — lógica de usuários
+├── middlewares/
+│   └── auth.middlewares.js          — valida o token JWT em rotas protegidas
 └── docs/
-    └── openapi.js      — configuração do Swagger para documentação
+    └── openapi.js                   — configuração do Swagger
 ```
-
-Separar o projeto em camadas mantém o código organizado. As rotas não precisam saber como a lógica funciona, só a quem chamar.
 
 ---
 
@@ -183,25 +254,31 @@ Separar o projeto em camadas mantém o código organizado. As rotas não precisa
 ```javascript
 import express from "express";
 import userRoutes from "./routes/userRoute.js";
+import authRoutes from "./routes/auth.route.js";
 import specs from "./docs/openapi.js";
 import swaggerUi from "swagger-ui-express";
 
-const app = express(); // criando o servidor express
+const app = express();
 
-// Middleware para ler o corpo da requisição em formato JSON
+// Middleware para ler JSON no corpo da requisição
 app.use(express.json());
 
-// Todas as rotas que começam com /users serão tratadas pelo userRoutes
+// Middleware para ler dados de formulário (application/x-www-form-urlencoded)
+app.use(express.urlencoded({ extended: true }));
+
+// Rotas de autenticação — login não exige token
+app.use("/auth", authRoutes);
+
+// Rotas de usuários — algumas exigem token (definido dentro do arquivo de rotas)
 app.use("/users", userRoutes);
 
 app.get("/", (req, res) => {
   res.send("Api rodando com express");
 });
 
-// Rota da documentação Swagger — acessível em http://localhost:3333/docs
+// Documentação Swagger — acessível em http://localhost:3333/docs
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs));
 
-// Inicia o servidor na porta 3333
 app.listen(3333, () => {
   console.log("Servidor rodando na porta 3333");
 });
@@ -209,17 +286,55 @@ app.listen(3333, () => {
 
 ---
 
-## Rotas — `routes/userRoute.js`
+## Rotas de autenticação — `routes/auth.route.js`
 
-As rotas conectam os endpoints HTTP às funções do controller. Em vez de escrever toda a lógica aqui, a rota apenas chama a função responsável.
+```javascript
+import { Router } from "express";
+import { login } from "../controllers/authController.js";
 
-As anotações `@openapi` acima de cada rota são comentários especiais lidos pelo `swagger-jsdoc` para gerar a documentação automaticamente.
+const router = Router();
+
+/**
+ * @openapi
+ * /auth/login:
+ *   post:
+ *     summary: Login do usuário
+ *     tags:
+ *       - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login realizado com sucesso
+ */
+router.post("/login", login);
+
+export default router;
+```
+
+---
+
+## Rotas de usuários — `routes/userRoute.js`
+
+Repare que o `authMiddleware` é passado como segundo argumento na rota `GET /users`. Isso significa que toda requisição para listar usuários precisa passar pela validação do token antes de chegar no controller.
+
+As rotas `POST` e `DELETE` não têm o middleware, então não exigem autenticação nesse exemplo.
 
 ```javascript
 import { Router } from 'express';
+import { authMiddleware } from "../middlewares/auth.middlewares.js";
 import { getUsers, createUser, deleteUser } from "../controllers/UserController.js";
 
-const router = Router(); // Router é um mini-servidor que gerencia um grupo de rotas
+const router = Router();
 
 /**
  * @openapi
@@ -232,7 +347,7 @@ const router = Router(); // Router é um mini-servidor que gerencia um grupo de 
  *       200:
  *         description: Lista de usuários
  */
-router.get("/", getUsers);
+router.get("/", authMiddleware, getUsers); // authMiddleware protege essa rota
 
 /**
  * @openapi
@@ -282,42 +397,109 @@ export default router;
 
 ---
 
-## Controllers — `controllers/UserController.js`
+## Controller de autenticação — `controllers/authController.js`
 
-Os controllers contêm a lógica de cada operação. Recebem o `req` e o `res` e decidem o que fazer com a requisição.
+```javascript
+import jwt from "jsonwebtoken";
+
+export const login = (req, res) => {
+  const { email, password } = req.body;
+
+  // Valida as credenciais — em produção isso viria de um banco de dados
+  if (email !== "admin@gmail.com" || password !== "123456") {
+    return res.status(401).json({
+      message: "Email ou senha inválidos"
+    });
+  }
+
+  // jwt.sign(payload, secret, options)
+  // payload  — dados que ficam dentro do token (não coloque senhas aqui)
+  // secret   — chave usada para assinar o token (em produção, use variável de ambiente)
+  // expiresIn — tempo de expiração do token
+  const token = jwt.sign(
+    { email },       // payload
+    "secret-key",    // secret
+    { expiresIn: "1d" } // expira em 1 dia
+  );
+
+  return res.json({ token });
+};
+```
+
+---
+
+## Middleware de autenticação — `middlewares/auth.middlewares.js`
+
+Esse middleware é responsável por proteger as rotas. Ele intercepta a requisição, verifica se o token existe e se é válido, e só então deixa a requisição continuar com `next()`.
+
+```javascript
+import jwt from "jsonwebtoken";
+
+export const authMiddleware = (req, res, next) => {
+
+  // O token chega no header Authorization como: "Bearer eyJhbGci..."
+  const authHeader = req.headers.authorization;
+
+  // Se não veio nenhum header, bloqueia
+  if (!authHeader) {
+    return res.status(401).json({
+      message: "Token não informado"
+    });
+  }
+
+  // authHeader = "Bearer eyJhbGci..."
+  // split(" ") divide em ["Bearer", "eyJhbGci..."]
+  // [1] pega só o token
+  const token = authHeader.split(" ")[1];
+
+  try {
+    // jwt.verify lança um erro se o token for inválido ou expirado
+    jwt.verify(token, "secret-key");
+
+    next(); // token válido — continua para o controller
+  } catch (error) {
+    return res.status(401).json({
+      message: "Token inválido"
+    });
+  }
+};
+```
+
+---
+
+## Controller de usuários — `controllers/UserController.js`
 
 ```javascript
 let users = []; // simulando um banco de dados com um array em memória
 
-// Buscar todos os usuários — apenas retorna o array completo
+// Buscar todos os usuários — rota protegida pelo authMiddleware
 export const getUsers = (req, res) => {
   return res.json(users);
 };
 
 // Criar usuário
 export const createUser = (req, res) => {
-  const { name, email } = req.body; // extrai os dados do corpo da requisição
+  const { name, email } = req.body;
 
   const user = {
-    id: users.length + 1, // gera um id simples baseado no tamanho do array
+    id: users.length + 1, // id simples baseado no tamanho do array
     name,
     email,
   };
 
-  users.push(user); // adiciona o novo usuário no array
+  users.push(user);
 
-  return res.status(201).json(user); // retorna o usuário criado com status 201
+  return res.status(201).json(user); // 201 Created
 };
 
 // Deletar usuário
 export const deleteUser = (req, res) => {
-  const { id } = req.params; // pega o id da URL
+  const { id } = req.params;
 
-  // filter cria um novo array sem o usuário com o id informado
-  // usa != (não estrito) porque req.params retorna string e user.id é number
+  // != (não estrito) porque req.params retorna string e user.id é number
   users = users.filter(user => user.id != id);
 
-  return res.sendStatus(204); // sem corpo na resposta, só o status 204
+  return res.sendStatus(204); // 204 No Content
 };
 ```
 
@@ -337,7 +519,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 
 const options = {
   definition: {
-    openapi: "3.0.0",        // versão do padrão OpenAPI
+    openapi: "3.0.0",
     info: {
       title: "API Node Estudos",
       version: "1.0.0",
@@ -345,14 +527,13 @@ const options = {
     },
     servers: [
       {
-        url: "http://localhost:3333", // URL base da API
+        url: "http://localhost:3333",
       },
     ],
   },
-  apis: ["./routes/*.js"], // caminho dos arquivos com anotações @openapi
+  apis: ["./routes/*.js"], // lê todos os arquivos de rota em busca de anotações @openapi
 };
 
-// Gera o objeto de especificação com base nas opções e nas anotações das rotas
 const specs = swaggerJsdoc(options);
 
 export default specs;
