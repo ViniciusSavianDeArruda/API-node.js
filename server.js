@@ -23,10 +23,10 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 */
 
 import express from "express";
-import userRoutes from "./routes/userRoute.js";
-import specs from "./docs/openapi.js";
 import swaggerUi from "swagger-ui-express";
+import specs from "./docs/openapi.js";
 import authRoutes from "./routes/auth.route.js";
+import userRoutes from "./routes/userRoute.js";
 
 const app = express(); // criando o servidor express
 app.use(express.json());
@@ -41,14 +41,14 @@ app.use("/auth", authRoutes);
 // rotas de usuários
 app.use("/users", userRoutes);
 
-app.get("/", (req, res)=>{
-  res.send("Api rodando com express"); 
+app.get("/", (req, res) => {
+  res.send("Api rodando com express");
 });
 
 // rota da documentação
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs));
 
 // inicia servidor
-app.listen(3333, ()=>{
+app.listen(3333, () => {
   console.log("Servidor rodando na porta 3333");
 });
