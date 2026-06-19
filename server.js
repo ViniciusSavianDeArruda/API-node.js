@@ -22,18 +22,16 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 
 */
 
+import "dotenv/config";
 import express from "express";
 import swaggerUi from "swagger-ui-express";
 import specs from "./docs/openapi.js";
 import authRoutes from "./routes/auth.route.js";
-import userRoutes from "./routes/userRoute.js";
+import userRoutes from "./routes/user.route.js";
 
-const app = express(); // criando o servidor express
+const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// middleware json
-app.use(express.json());
 
 // rotas de autenticação
 app.use("/auth", authRoutes);

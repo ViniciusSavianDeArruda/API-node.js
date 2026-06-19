@@ -1,11 +1,10 @@
 import {Router} from 'express';
 import { authMiddleware } from "../middlewares/auth.middlewares.js";
-// importando as funções do UserController para serem usadas nas rotas
-import{
+import {
   getUsers,
   createUser,
   deleteUser
-} from "../controllers/UserController.js";
+} from "../controllers/userController.js";
 
 const router = Router(); // criando uma instância do Router do express
 
