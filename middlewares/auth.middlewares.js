@@ -19,7 +19,7 @@ export const authMiddleware = (req, res, next) => {
   try {
 
     // validar token
-    jwt.verify(token, "secret-key");
+    jwt.verify(token, process.env.JWT_SECRET);
 
     // continuar rota
     next();
