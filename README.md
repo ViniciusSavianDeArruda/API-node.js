@@ -188,7 +188,7 @@ eyJhbGciOiJIUzI1NiJ9 . eyJlbWFpbCI6ImFkbWluIn0 . xSKsNMJtR3sQBHc6F7...
 
 - **Header** — informa o algoritmo usado
 - **Payload** — os dados que você colocou no token (como o email do usuário)
-- **Signature** — garante que o token não foi alterado, gerada com a secret-key
+- **Signature** — garante que o token não foi alterado, gerada com o JWT_SECRET
 
 O token **não é criptografado**, apenas assinado. Isso significa que qualquer um pode ler o payload, mas não pode alterar sem invalidar a assinatura. Nunca coloque senhas no payload.
 
@@ -220,7 +220,7 @@ O `try/catch` é usado para lidar com erros que podem acontecer durante a execu�
 ```javascript
 try {
   // tenta executar esse bloco
-  jwt.verify(token, "secret-key");
+  jwt.verify(token, process.env.JWT_SECRET);
   next(); // se chegou aqui, o token é válido
 } catch (error) {
   // se der erro, cai aqui
@@ -230,21 +230,59 @@ try {
 
 ---
 
+## Variáveis de Ambiente
+
+Dados sensíveis como a chave do JWT nunca devem ficar no código. Eles ficam em um arquivo `.env` na raiz do projeto:
+
+```env
+JWT_SECRET=minha_chave_secreta_super_segura
+```
+
+O pacote `dotenv` carrega esse arquivo e disponibiliza os valores em `process.env`:
+
+```javascript
+import "dotenv/config"; // carrega o .env no topo do server.js
+
+jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+```
+
+O arquivo `.env` está no `.gitignore` e **nunca deve ser enviado ao Git**.
+
+---
+
 ## Estrutura do Projeto
 
 ```
 projeto/
+├── .env                             — variáveis de ambiente (não sobe no Git)
+├── .gitignore
+├── package.json
 ├── server.js                        — ponto de entrada, configura e inicia o servidor
+├── users.js                         — array de usuários compartilhado entre controllers
 ├── routes/
 │   ├── auth.route.js                — rota de login
-│   └── userRoute.js                 — rotas de usuários (protegidas)
+│   └── user.route.js                — rotas de usuários
 ├── controllers/
-│   ├── authController.js            — lógica de autenticação
-│   └── UserController.js            — lógica de usuários
+│   ├── authController.js            — lógica de autenticação e geração do token
+│   └── userController.js            — lógica de usuários (listar, criar, deletar)
 ├── middlewares/
 │   └── auth.middlewares.js          — valida o token JWT em rotas protegidas
 └── docs/
     └── openapi.js                   — configuração do Swagger
+```
+
+### Fluxo completo de uma requisição
+
+```
+Cliente faz uma requisição
+       ↓
+  server.js  →  roteia para routes/
+       ↓
+  routes/    →  chama middleware (se a rota exigir)
+       ↓
+  middlewares/ → valida token, chama next()
+       ↓
+  controllers/ → processa e devolve a resposta
 ```
 
 ---
@@ -252,11 +290,12 @@ projeto/
 ## Servidor Principal — `server.js`
 
 ```javascript
+import "dotenv/config"; // carrega o .env
 import express from "express";
-import userRoutes from "./routes/userRoute.js";
-import authRoutes from "./routes/auth.route.js";
-import specs from "./docs/openapi.js";
 import swaggerUi from "swagger-ui-express";
+import specs from "./docs/openapi.js";
+import authRoutes from "./routes/auth.route.js";
+import userRoutes from "./routes/user.route.js";
 
 const app = express();
 
@@ -294,28 +333,6 @@ import { login } from "../controllers/authController.js";
 
 const router = Router();
 
-/**
- * @openapi
- * /auth/login:
- *   post:
- *     summary: Login do usuário
- *     tags:
- *       - Auth
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               email:
- *                 type: string
- *               password:
- *                 type: string
- *     responses:
- *       200:
- *         description: Login realizado com sucesso
- */
 router.post("/login", login);
 
 export default router;
@@ -323,7 +340,7 @@ export default router;
 
 ---
 
-## Rotas de usuários — `routes/userRoute.js`
+## Rotas de usuários — `routes/user.route.js`
 
 Repare que o `authMiddleware` é passado como segundo argumento na rota `GET /users`. Isso significa que toda requisição para listar usuários precisa passar pela validação do token antes de chegar no controller.
 
@@ -332,64 +349,12 @@ As rotas `POST` e `DELETE` não têm o middleware, então não exigem autentica�
 ```javascript
 import { Router } from 'express';
 import { authMiddleware } from "../middlewares/auth.middlewares.js";
-import { getUsers, createUser, deleteUser } from "../controllers/UserController.js";
+import { getUsers, createUser, deleteUser } from "../controllers/userController.js";
 
 const router = Router();
 
-/**
- * @openapi
- * /users:
- *   get:
- *     summary: Lista todos os usuários
- *     tags:
- *       - Users
- *     responses:
- *       200:
- *         description: Lista de usuários
- */
 router.get("/", authMiddleware, getUsers); // authMiddleware protege essa rota
-
-/**
- * @openapi
- * /users:
- *   post:
- *     summary: Cria um usuário
- *     tags:
- *       - Users
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *     responses:
- *       201:
- *         description: Usuário criado com sucesso
- */
 router.post("/", createUser);
-
-/**
- * @openapi
- * /users/{id}:
- *   delete:
- *     summary: Remove um usuário
- *     tags:
- *       - Users
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       204:
- *         description: Usuário removido
- */
 router.delete("/:id", deleteUser);
 
 export default router;
@@ -399,27 +364,31 @@ export default router;
 
 ## Controller de autenticação — `controllers/authController.js`
 
+O login agora busca o usuário no array compartilhado `users.js`, em vez de usar credenciais fixas no código. Isso permite que qualquer usuário criado via `POST /users` já possa fazer login.
+
 ```javascript
 import jwt from "jsonwebtoken";
+import { users } from "../users.js";
 
 export const login = (req, res) => {
   const { email, password } = req.body;
 
-  // Valida as credenciais — em produção isso viria de um banco de dados
-  if (email !== "admin@gmail.com" || password !== "123456") {
-    return res.status(401).json({
-      message: "Email ou senha inválidos"
-    });
+  // Procura o usuário pelo email no array compartilhado
+  const user = users.find(u => u.email === email);
+
+  // Verifica se o usuário existe e se a senha bate
+  if (!user || user.password !== password) {
+    return res.status(401).json({ message: "Email ou senha inválidos" });
   }
 
   // jwt.sign(payload, secret, options)
   // payload  — dados que ficam dentro do token (não coloque senhas aqui)
-  // secret   — chave usada para assinar o token (em produção, use variável de ambiente)
+  // secret   — chave lida do .env via process.env.JWT_SECRET
   // expiresIn — tempo de expiração do token
   const token = jwt.sign(
-    { email },       // payload
-    "secret-key",    // secret
-    { expiresIn: "1d" } // expira em 1 dia
+    { id: user.id, email: user.email },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
   );
 
   return res.json({ token });
@@ -453,9 +422,7 @@ export const authMiddleware = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    // jwt.verify lança um erro se o token for inválido ou expirado
-    jwt.verify(token, "secret-key");
-
+    jwt.verify(token, process.env.JWT_SECRET);
     next(); // token válido — continua para o controller
   } catch (error) {
     return res.status(401).json({
@@ -467,10 +434,20 @@ export const authMiddleware = (req, res, next) => {
 
 ---
 
-## Controller de usuários — `controllers/UserController.js`
+## Array de usuários compartilhado — `users.js`
+
+O array `users` fica em um arquivo separado na raiz para ser importado tanto pelo `authController` quanto pelo `userController`. Sem isso, cada arquivo teria seu próprio array isolado — um usuário criado em um controller não existiria no outro.
 
 ```javascript
-let users = []; // simulando um banco de dados com um array em memória
+export const users = [];
+```
+
+---
+
+## Controller de usuários — `controllers/userController.js`
+
+```javascript
+import { users } from "../users.js"; // array compartilhado com o authController
 
 // Buscar todos os usuários — rota protegida pelo authMiddleware
 export const getUsers = (req, res) => {
@@ -479,12 +456,13 @@ export const getUsers = (req, res) => {
 
 // Criar usuário
 export const createUser = (req, res) => {
-  const { name, email } = req.body;
+  const { name, email, password } = req.body;
 
   const user = {
     id: users.length + 1, // id simples baseado no tamanho do array
     name,
     email,
+    password,
   };
 
   users.push(user);
@@ -496,8 +474,15 @@ export const createUser = (req, res) => {
 export const deleteUser = (req, res) => {
   const { id } = req.params;
 
-  // != (não estrito) porque req.params retorna string e user.id é number
-  users = users.filter(user => user.id != id);
+  // findIndex retorna -1 se não encontrar
+  const index = users.findIndex(user => user.id == id);
+
+  if (index === -1) {
+    return res.status(404).json({ message: "Usuário não encontrado" });
+  }
+
+  // splice remove o elemento no índice encontrado
+  users.splice(index, 1);
 
   return res.sendStatus(204); // 204 No Content
 };
