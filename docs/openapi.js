@@ -15,6 +15,17 @@ const options = {
         url: "http://localhost:3333",
       },
     ],
+
+    // definindo o esquema de segurança para autenticação com JWT
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
   },
 
   apis: ["./routes/*.js"],
