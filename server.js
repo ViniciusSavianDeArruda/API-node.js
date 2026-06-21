@@ -1,5 +1,5 @@
 //Toda a api vai ter uma rota, endoint e um metodo http
-/*GET - para buscar dados
+/*GET - para buscar dados --> pode buscar pelo {id} ou buscar todos os usuarios
 POST - para criar dados
 PUT - para atualizar dados
 PATCH - para atualizar dados parcialmente
@@ -19,7 +19,6 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 403 - Forbidden - proibido, para indicar que o cliente não tem permissão para acessar o recurso
 404 - Not Found - não encontrado, para indicar que o recurso solicitado não foi encontrado no servidor
 500 - Internal Server Error - erro interno do servidor, para indicar que houve um erro no servidor ao processar a requisição
-
 */
 
 import "dotenv/config";
