@@ -21,7 +21,6 @@ const router = Router(); // criando uma instância do Router do express
  *         description: Lista de usuários
  */
 
-router.get("/",authMiddleware, getUsers);
 /**
  * @openapi
  * /users:
@@ -43,9 +42,7 @@ router.get("/",authMiddleware, getUsers);
  *     responses:
  *       201:
  *         description: Usuário criado com sucesso
- */
-router.post("/", createUser);
-
+*/
 
 /**
  * @openapi
@@ -63,9 +60,7 @@ router.post("/", createUser);
  *     responses:
  *       204:
  *         description: Usuário removido
- */
-router.delete("/:id", deleteUser);
-
+*/
 
 /**
  * @openapi
@@ -99,7 +94,11 @@ router.delete("/:id", deleteUser);
  *       404:
  *         description: Usuário não encontrado
 */
-router.put("/:id", updateUser);
+
+router.get("/", authMiddleware, getUsers);
+router.post("/", createUser);
+router.put("/:id", authMiddleware, updateUser);
+router.delete("/:id", authMiddleware, deleteUser);
 
 
 export default router;
