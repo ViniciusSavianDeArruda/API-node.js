@@ -54,8 +54,8 @@ A documentação interativa fica em `http://localhost:3333/docs`.
 | `POST`   | `/auth/login`   | Não     | Gera um token JWT       |
 | `GET`    | `/users`        | **Sim** | Lista todos os usuários |
 | `POST`   | `/users`        | Não     | Cria um novo usuário    |
-| `PUT`    | `/users/:id`    | Não     | Atualiza um usuário     |
-| `DELETE` | `/users/:id`    | Não     | Remove um usuário       |
+| `PUT`    | `/users/:id`    | **Sim** | Atualiza um usuário     |
+| `DELETE` | `/users/:id`    | **Sim** | Remove um usuário       |
 
 Rotas marcadas com **Sim** exigem o token JWT no header de todas as requisições:
 

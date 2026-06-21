@@ -264,7 +264,7 @@ projeto/
 │   └── user.route.js                — rotas de usuários
 ├── controllers/
 │   ├── authController.js            — lógica de autenticação e geração do token
-│   └── userController.js            — lógica de usuários (listar, criar, deletar)
+│   └── userController.js            — lógica de usuários (listar, criar, atualizar, deletar)
 ├── middlewares/
 │   └── auth.middlewares.js          — valida o token JWT em rotas protegidas
 └── docs/
@@ -273,13 +273,13 @@ projeto/
 
 ### Endpoints disponíveis
 
-| Método   | Rota            | Auth?  | Descrição                  |
-|----------|-----------------|--------|----------------------------|
-| `POST`   | `/auth/login`   | Não    | Gera um token JWT          |
-| `GET`    | `/users`        | **Sim**| Lista todos os usuários    |
-| `POST`   | `/users`        | Não    | Cria um novo usuário       |
-| `PUT`    | `/users/:id`    | Não    | Atualiza um usuário        |
-| `DELETE` | `/users/:id`    | Não    | Remove um usuário          |
+| Método   | Rota            | Auth?   | Descrição                  |
+|----------|-----------------|---------|----------------------------|
+| `POST`   | `/auth/login`   | Não     | Gera um token JWT          |
+| `GET`    | `/users`        | **Sim** | Lista todos os usuários    |
+| `POST`   | `/users`        | Não     | Cria um novo usuário       |
+| `PUT`    | `/users/:id`    | **Sim** | Atualiza um usuário        |
+| `DELETE` | `/users/:id`    | **Sim** | Remove um usuário          |
 
 ### Fluxo completo de uma requisição
 
