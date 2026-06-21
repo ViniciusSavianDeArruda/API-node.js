@@ -3,7 +3,7 @@ import { users } from "../users.js";
 
 // função de login
 export const login = (req, res) => {
-  const { email, password } = req.body;
+  const {email, password } = req.body;
 
     const user = users.find(u => u.email === email);
 

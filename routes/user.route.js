@@ -16,9 +16,13 @@ const router = Router(); // criando uma instância do Router do express
  *     summary: Lista todos os usuários
  *     tags:
  *       - Users
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de usuários
+ *       401:
+ *         description: Token não informado ou inválido
  */
 
 /**
@@ -34,10 +38,16 @@ const router = Router(); // criando uma instância do Router do express
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
  *             properties:
  *               name:
  *                 type: string
  *               email:
+ *                 type: string
+ *               password:
  *                 type: string
  *     responses:
  *       201:
@@ -51,6 +61,8 @@ const router = Router(); // criando uma instância do Router do express
  *     summary: Remove um usuário
  *     tags:
  *       - Users
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -60,6 +72,10 @@ const router = Router(); // criando uma instância do Router do express
  *     responses:
  *       204:
  *         description: Usuário removido
+ *       401:
+ *         description: Token não informado ou inválido
+ *       404:
+ *         description: Usuário não encontrado
 */
 
 /**
@@ -69,6 +85,8 @@ const router = Router(); // criando uma instância do Router do express
  *     summary: Atualiza um usuário
  *     tags:
  *       - Users
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -81,6 +99,10 @@ const router = Router(); // criando uma instância do Router do express
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
  *             properties:
  *               name:
  *                 type: string
@@ -91,6 +113,8 @@ const router = Router(); // criando uma instância do Router do express
  *     responses:
  *       200:
  *         description: Usuário atualizado com sucesso
+ *       401:
+ *         description: Token não informado ou inválido
  *       404:
  *         description: Usuário não encontrado
 */
