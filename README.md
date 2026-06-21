@@ -7,7 +7,7 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 - Servidor Express com suporte a JSON e form data
 - CRUD de usuários (criar, listar, atualizar e deletar)
 - Autenticação com JWT — login gera um token que protege rotas específicas
-- Documentação interativa com OpenAPI/Swagger
+- Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers
 
 ## Tecnologias
@@ -132,6 +132,7 @@ controllers/  →  processa a lógica e devolve a resposta
 
 - Os dados dos usuários ficam em memória (array em `users.js`). Ao reiniciar o servidor, os dados são perdidos — banco de dados é um próximo passo nos estudos.
 - As anotações `@openapi` ficam diretamente nos arquivos de rota. O `swagger-jsdoc` lê esses comentários automaticamente e monta a documentação sem precisar editar o `openapi.js` a cada nova rota.
+- Para testar rotas protegidas no Swagger: faça login em `POST /auth/login`, copie o token da resposta, clique em **Authorize** no topo da página e cole o token. A partir daí o Swagger manda o token automaticamente em todas as requisições.
 
 ## Anotações de estudo
 

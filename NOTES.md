@@ -356,6 +356,9 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - email
+ *               - password
  *             properties:
  *               email:
  *                 type: string
@@ -364,6 +367,15 @@ const router = Router();
  *     responses:
  *       200:
  *         description: Login realizado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *       401:
+ *         description: Email ou senha inválidos
  */
 router.post("/login", login);
 
@@ -374,11 +386,9 @@ export default router;
 
 ## Rotas de usuários — `routes/user.route.js`
 
-Repare que o `authMiddleware` é passado como segundo argumento na rota `GET /users`. Isso significa que toda requisição para listar usuários precisa passar pela validação do token antes de chegar no controller.
+O `authMiddleware` é passado como segundo argumento nas rotas que exigem autenticação (`GET`, `PUT` e `DELETE`). A rota `POST` é pública — qualquer pessoa pode criar uma conta sem precisar de token.
 
-As rotas `POST`, `PUT` e `DELETE` não têm o middleware, então não exigem autenticação nesse exemplo.
-
-Cada rota tem um comentário `@openapi` que o `swagger-jsdoc` lê automaticamente para montar a documentação no Swagger. Esses comentários ficam **diretamente no arquivo de rota**, logo acima de cada `router.method(...)`, e descrevem o endpoint, os parâmetros esperados e as respostas possíveis — sem precisar editar o `openapi.js` para cada nova rota.
+Cada rota tem um comentário `@openapi` que o `swagger-jsdoc` lê automaticamente para montar a documentação no Swagger. As rotas protegidas têm `security: - bearerAuth: []`, que faz o Swagger exibir o cadeado e o botão **Authorize** para informar o token.
 
 ```javascript
 import { Router } from 'express';
@@ -394,11 +404,15 @@ const router = Router();
  *     summary: Lista todos os usuários
  *     tags:
  *       - Users
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de usuários
+ *       401:
+ *         description: Token não informado ou inválido
  */
-router.get("/", authMiddleware, getUsers); // authMiddleware protege essa rota
+router.get("/", authMiddleware, getUsers);
 
 /**
  * @openapi
@@ -413,10 +427,16 @@ router.get("/", authMiddleware, getUsers); // authMiddleware protege essa rota
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
  *             properties:
  *               name:
  *                 type: string
  *               email:
+ *                 type: string
+ *               password:
  *                 type: string
  *     responses:
  *       201:
@@ -431,6 +451,8 @@ router.post("/", createUser);
  *     summary: Remove um usuário
  *     tags:
  *       - Users
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -440,8 +462,12 @@ router.post("/", createUser);
  *     responses:
  *       204:
  *         description: Usuário removido
+ *       401:
+ *         description: Token não informado ou inválido
+ *       404:
+ *         description: Usuário não encontrado
  */
-router.delete("/:id", deleteUser);
+router.delete("/:id", authMiddleware, deleteUser);
 
 /**
  * @openapi
@@ -450,6 +476,8 @@ router.delete("/:id", deleteUser);
  *     summary: Atualiza um usuário
  *     tags:
  *       - Users
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -462,6 +490,10 @@ router.delete("/:id", deleteUser);
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
  *             properties:
  *               name:
  *                 type: string
@@ -472,10 +504,12 @@ router.delete("/:id", deleteUser);
  *     responses:
  *       200:
  *         description: Usuário atualizado com sucesso
+ *       401:
+ *         description: Token não informado ou inválido
  *       404:
  *         description: Usuário não encontrado
  */
-router.put("/:id", updateUser);
+router.put("/:id", authMiddleware, updateUser);
 
 export default router;
 ```
@@ -639,6 +673,8 @@ O **Swagger** permite visualizar e testar os endpoints da API pelo navegador, se
 
 Após iniciar o servidor, acesse: [http://localhost:3333/docs](http://localhost:3333/docs)
 
+O `components.securitySchemes` define o esquema de autenticação Bearer JWT. Sem isso o Swagger não sabe que a API usa token — o botão **Authorize** não aparece e as rotas protegidas não mostram o cadeado. As rotas que precisam do token declaram `security: - bearerAuth: []` nas suas anotações `@openapi`.
+
 ```javascript
 import swaggerJsdoc from "swagger-jsdoc";
 
@@ -655,6 +691,15 @@ const options = {
         url: "http://localhost:3333",
       },
     ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
   },
   apis: ["./routes/*.js"], // lê todos os arquivos de rota em busca de anotações @openapi
 };
