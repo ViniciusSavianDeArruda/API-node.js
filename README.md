@@ -271,6 +271,16 @@ projeto/
     └── openapi.js                   — configuração do Swagger
 ```
 
+### Endpoints disponíveis
+
+| Método   | Rota            | Auth?  | Descrição                  |
+|----------|-----------------|--------|----------------------------|
+| `POST`   | `/auth/login`   | Não    | Gera um token JWT          |
+| `GET`    | `/users`        | **Sim**| Lista todos os usuários    |
+| `POST`   | `/users`        | Não    | Cria um novo usuário       |
+| `PUT`    | `/users/:id`    | Não    | Atualiza um usuário        |
+| `DELETE` | `/users/:id`    | Não    | Remove um usuário          |
+
 ### Fluxo completo de uma requisição
 
 ```
@@ -333,6 +343,28 @@ import { login } from "../controllers/authController.js";
 
 const router = Router();
 
+/**
+ * @openapi
+ * /auth/login:
+ *   post:
+ *     summary: Login do usuário
+ *     tags:
+ *       - Auth
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login realizado com sucesso
+ */
 router.post("/login", login);
 
 export default router;
@@ -344,18 +376,106 @@ export default router;
 
 Repare que o `authMiddleware` é passado como segundo argumento na rota `GET /users`. Isso significa que toda requisição para listar usuários precisa passar pela validação do token antes de chegar no controller.
 
-As rotas `POST` e `DELETE` não têm o middleware, então não exigem autenticação nesse exemplo.
+As rotas `POST`, `PUT` e `DELETE` não têm o middleware, então não exigem autenticação nesse exemplo.
+
+Cada rota tem um comentário `@openapi` que o `swagger-jsdoc` lê automaticamente para montar a documentação no Swagger. Esses comentários ficam **diretamente no arquivo de rota**, logo acima de cada `router.method(...)`, e descrevem o endpoint, os parâmetros esperados e as respostas possíveis — sem precisar editar o `openapi.js` para cada nova rota.
 
 ```javascript
 import { Router } from 'express';
 import { authMiddleware } from "../middlewares/auth.middlewares.js";
-import { getUsers, createUser, deleteUser } from "../controllers/userController.js";
+import { getUsers, createUser, deleteUser, updateUser } from "../controllers/userController.js";
 
 const router = Router();
 
+/**
+ * @openapi
+ * /users:
+ *   get:
+ *     summary: Lista todos os usuários
+ *     tags:
+ *       - Users
+ *     responses:
+ *       200:
+ *         description: Lista de usuários
+ */
 router.get("/", authMiddleware, getUsers); // authMiddleware protege essa rota
+
+/**
+ * @openapi
+ * /users:
+ *   post:
+ *     summary: Cria um usuário
+ *     tags:
+ *       - Users
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Usuário criado com sucesso
+ */
 router.post("/", createUser);
+
+/**
+ * @openapi
+ * /users/{id}:
+ *   delete:
+ *     summary: Remove um usuário
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Usuário removido
+ */
 router.delete("/:id", deleteUser);
+
+/**
+ * @openapi
+ * /users/{id}:
+ *   put:
+ *     summary: Atualiza um usuário
+ *     tags:
+ *       - Users
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Usuário atualizado com sucesso
+ *       404:
+ *         description: Usuário não encontrado
+ */
+router.put("/:id", updateUser);
 
 export default router;
 ```
@@ -468,6 +588,26 @@ export const createUser = (req, res) => {
   users.push(user);
 
   return res.status(201).json(user); // 201 Created
+};
+
+// Atualizar usuário — PUT /:id
+export const updateUser = (req, res) => {
+  const { id } = req.params;
+  const { name, email, password } = req.body;
+
+  // find retorna o objeto diretamente (diferente de findIndex que retorna a posição)
+  const user = users.find(u => u.id == id);
+
+  if (!user) {
+    return res.status(404).json({ message: "Usuário não encontrado" });
+  }
+
+  // mutação direta no objeto dentro do array
+  user.name = name;
+  user.email = email;
+  user.password = password;
+
+  return res.json(user); // 200 OK com o usuário atualizado
 };
 
 // Deletar usuário

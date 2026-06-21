@@ -25,6 +25,25 @@ export const createUser = (req, res)=>{
   return res.status(201).json(user); // status 201 - criado, para indicar que o usuario foi criado com sucesso
 }
 
+//editar usuario --> PUT
+export const updateUser = (req, res) => {
+  const { id } = req.params; //cliente manda o id do usuario para o servidor
+  const { name, email, password } = req.body;
+
+  const user = users.find(u => u.id == id); // encontrar o usuario no array de usuarios
+
+  if (!user) {
+    return res.status(404).json({
+      message: "Usuário não encontrado"
+    });
+  }
+  user.name = name;
+  user.email = email;
+  user.password = password;
+
+  return res.json(user);
+}
+
 
 //Deletar usuario
 export const deleteUser = (req, res)=>{
