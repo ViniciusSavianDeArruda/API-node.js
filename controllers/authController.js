@@ -1,27 +1,35 @@
 import jwt from "jsonwebtoken";
 import { users } from "../users.js";
+import bcrypt from "bcrypt";
 
 // função de login
-export const login = (req, res) => {
-  const {email, password } = req.body;
+export const login = async (req, res) => {
+  const { email, password } = req.body;
 
-    const user = users.find(u => u.email === email);
+  // 1. verificar se o usuário existe
+  const user = users.find(u => u.email === email);
 
-  // Verificar email e senha
-   if (!user || user.password !== password) {
+  if (!user) {
     return res.status(401).json({ message: "Email ou senha inválidos" });
   }
 
-  // gerar token
+  // 2. verificar se a senha bate com o hash
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    return res.status(401).json({ message: "Email ou senha inválidos" });
+  }
+
+  // 3. gerar token
   const token = jwt.sign(
     {
       id: user.id,
       email: user.email
-  },
+    },
     process.env.JWT_SECRET,
     { expiresIn: "1h" }
   );
 
-  // devolver token
-  return res.json({token});
+  // 4. devolver token
+  return res.json({ token });
 };

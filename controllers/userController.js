@@ -1,7 +1,9 @@
+import bcrypt from "bcrypt";
 import { users } from "../users.js";
 
 export const getUsers = (req, res)=>{ // => isso é um callback, funcao que passa como parametro para outra funcao
-  return res.json(users);
+  const usersWithoutPassword = users.map(({ password, ...rest }) => rest);
+  return res.json(usersWithoutPassword);
 }
 
 
@@ -9,24 +11,31 @@ export const getUsers = (req, res)=>{ // => isso é um callback, funcao que pass
 //PARAMS - parametros da rota, o que o cliente manda para o servidor na url
 
 //criar usuario
-export const createUser = (req, res)=>{
-  const {name, email, password} = req.body; //cliente manda nome e email para o servidor
+export const createUser = async (req, res)=>{ // adionando async
+  const { name, email, password } = req.body; //cliente manda nome e email para o servidor
+
+  //Transformar a senha em hash, await pq é uma funcao assincrona, precisa esperar a funcao terminar para continuar
+  const hashedPassword = await bcrypt.hash(password, 10); // 10 é o número de rounds de hash, quanto maior o número, mais seguro, mas mais lento
 
   // criando objeto do usuário
   const user = {
     id: users.length + 1,
     name,
     email,
-    password
+    password: hashedPassword // armazenando a senha criptografada direto no objeto do usuário
   };
 
   users.push(user); // adicionando o usuario no array de usuarios
 
-  return res.status(201).json(user); // status 201 - criado, para indicar que o usuario foi criado com sucesso
+  return res.status(201).json({ // 201 Created — não retorna a senha nem o hash
+    id: user.id,
+    name: user.name,
+    email: user.email
+  });
 }
 
-//editar usuario --> PUT
-export const updateUser = (req, res) => {
+//editar usuario
+export const updateUser = async (req, res) => {
   const { id } = req.params; //cliente manda o id do usuario para o servidor
   const { name, email, password } = req.body;
 
@@ -37,11 +46,18 @@ export const updateUser = (req, res) => {
       message: "Usuário não encontrado"
     });
   }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
   user.name = name;
   user.email = email;
-  user.password = password;
+  user.password = hashedPassword;
 
-  return res.json(user);
+  return res.json({
+    id: user.id,
+    name: user.name,
+    email: user.email
+  }); // não retorna a senha
 }
 
 
