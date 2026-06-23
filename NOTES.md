@@ -518,33 +518,40 @@ export default router;
 
 ## Controller de autenticação — `controllers/authController.js`
 
-O login agora busca o usuário no array compartilhado `users.js`, em vez de usar credenciais fixas no código. Isso permite que qualquer usuário criado via `POST /users` já possa fazer login.
+O login busca o usuário pelo email, verifica se existe, e depois compara a senha digitada com o hash salvo usando `bcrypt.compare`. A função é `async` porque `bcrypt.compare` é assíncrono.
+
+A verificação é feita em duas etapas separadas para evitar tentar acessar `user.password` quando o usuário não existe (o que quebraria o código).
 
 ```javascript
 import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
 import { users } from "../users.js";
 
-export const login = (req, res) => {
+export const login = async (req, res) => {
   const { email, password } = req.body;
 
-  // Procura o usuário pelo email no array compartilhado
+  // 1. verificar se o usuário existe
   const user = users.find(u => u.email === email);
 
-  // Verifica se o usuário existe e se a senha bate
-  if (!user || user.password !== password) {
+  if (!user) {
     return res.status(401).json({ message: "Email ou senha inválidos" });
   }
 
-  // jwt.sign(payload, secret, options)
-  // payload  — dados que ficam dentro do token (não coloque senhas aqui)
-  // secret   — chave lida do .env via process.env.JWT_SECRET
-  // expiresIn — tempo de expiração do token
+  // 2. verificar se a senha bate com o hash — só depois de confirmar que o user existe
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    return res.status(401).json({ message: "Email ou senha inválidos" });
+  }
+
+  // 3. gerar token
   const token = jwt.sign(
     { id: user.id, email: user.email },
     process.env.JWT_SECRET,
     { expiresIn: "1h" }
   );
 
+  // 4. devolver token
   return res.json({ token });
 };
 ```
@@ -600,62 +607,75 @@ export const users = [];
 
 ## Controller de usuários — `controllers/userController.js`
 
-```javascript
-import { users } from "../users.js"; // array compartilhado com o authController
+Todas as funções que lidam com senha agora usam `bcrypt`. A senha nunca é retornada nas respostas — nem em texto puro nem como hash.
 
-// Buscar todos os usuários — rota protegida pelo authMiddleware
+```javascript
+import bcrypt from "bcrypt";
+import { users } from "../users.js";
+
+// Buscar todos os usuários — remove a senha de cada usuário antes de retornar
 export const getUsers = (req, res) => {
-  return res.json(users);
+  const usersWithoutPassword = users.map(({ password, ...rest }) => rest);
+  return res.json(usersWithoutPassword);
 };
 
-// Criar usuário
-export const createUser = (req, res) => {
+// Criar usuário — gera hash da senha antes de salvar
+export const createUser = async (req, res) => {
   const { name, email, password } = req.body;
 
+  // bcrypt.hash(senha, rounds) — quanto maior o número de rounds, mais seguro e mais lento
+  const hashedPassword = await bcrypt.hash(password, 10);
+
   const user = {
-    id: users.length + 1, // id simples baseado no tamanho do array
+    id: users.length + 1,
     name,
     email,
-    password,
+    password: hashedPassword // armazena o hash, nunca a senha em texto puro
   };
 
   users.push(user);
 
-  return res.status(201).json(user); // 201 Created
+  return res.status(201).json({
+    id: user.id,
+    name: user.name,
+    email: user.email
+  }); // 201 Created — não retorna a senha nem o hash
 };
 
-// Atualizar usuário — PUT /:id
-export const updateUser = (req, res) => {
+// Atualizar usuário — também gera hash se a senha for alterada
+export const updateUser = async (req, res) => {
   const { id } = req.params;
   const { name, email, password } = req.body;
 
-  // find retorna o objeto diretamente (diferente de findIndex que retorna a posição)
   const user = users.find(u => u.id == id);
 
   if (!user) {
     return res.status(404).json({ message: "Usuário não encontrado" });
   }
 
-  // mutação direta no objeto dentro do array
+  const hashedPassword = await bcrypt.hash(password, 10);
+
   user.name = name;
   user.email = email;
-  user.password = password;
+  user.password = hashedPassword;
 
-  return res.json(user); // 200 OK com o usuário atualizado
+  return res.json({
+    id: user.id,
+    name: user.name,
+    email: user.email
+  }); // não retorna a senha
 };
 
 // Deletar usuário
 export const deleteUser = (req, res) => {
   const { id } = req.params;
 
-  // findIndex retorna -1 se não encontrar
   const index = users.findIndex(user => user.id == id);
 
   if (index === -1) {
     return res.status(404).json({ message: "Usuário não encontrado" });
   }
 
-  // splice remove o elemento no índice encontrado
   users.splice(index, 1);
 
   return res.sendStatus(204); // 204 No Content

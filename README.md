@@ -6,6 +6,7 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 
 - Servidor Express com suporte a JSON e form data
 - CRUD de usuários (criar, listar, atualizar e deletar)
+- Senhas criptografadas com bcrypt — nunca armazenadas ou retornadas em texto puro
 - Autenticação com JWT — login gera um token que protege rotas específicas
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers
@@ -14,6 +15,7 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 
 - [Node.js](https://nodejs.org/)
 - [Express](https://expressjs.com/) — framework web
+- [bcrypt](https://github.com/kelektiv/node.bcrypt.js) — criptografia de senhas
 - [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) — geração e validação de tokens JWT
 - [dotenv](https://github.com/motdotla/dotenv) — variáveis de ambiente
 - [swagger-jsdoc](https://github.com/Surnet/swagger-jsdoc) + [swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) — documentação da API
