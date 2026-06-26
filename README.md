@@ -12,16 +12,22 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers → validators
 
-## Tecnologias
+## Tecnologias e Referências
 
-- [Node.js](https://nodejs.org/)
-- [Express](https://expressjs.com/) — framework web
-- [bcrypt](https://github.com/kelektiv/node.bcrypt.js) — criptografia de senhas
-- [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) — geração e validação de tokens JWT
-- [zod](https://zod.dev) — validação de dados de entrada
-- [dotenv](https://github.com/motdotla/dotenv) — variáveis de ambiente
-- [swagger-jsdoc](https://github.com/Surnet/swagger-jsdoc) + [swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) — documentação da API
-- [nodemon](https://github.com/remy/nodemon) — hot reload em desenvolvimento
+Todas as tecnologias utilizadas foram estudadas diretamente nas suas documentações oficiais.
+
+| Tecnologia | Documentação | Descrição |
+|---|---|---|
+| Node.js | [nodejs.org/docs](https://nodejs.org/en/docs) | Runtime JavaScript |
+| Express | [expressjs.com](https://expressjs.com/en/4x/api.html) | Framework web |
+| bcrypt | [github.com/kelektiv/node.bcrypt.js](https://github.com/kelektiv/node.bcrypt.js) | Criptografia de senhas |
+| jsonwebtoken | [github.com/auth0/node-jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) | Geração e validação de JWT |
+| Zod | [zod.dev](https://zod.dev) | Validação de dados |
+| dotenv | [github.com/motdotla/dotenv](https://github.com/motdotla/dotenv) | Variáveis de ambiente |
+| swagger-jsdoc | [github.com/Surnet/swagger-jsdoc](https://github.com/Surnet/swagger-jsdoc) | Geração da documentação OpenAPI |
+| swagger-ui-express | [github.com/scottie1984/swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) | Interface visual do Swagger |
+| nodemon | [nodemon.io](https://nodemon.io) | Hot reload em desenvolvimento |
+| OpenAPI | [spec.openapis.org](https://spec.openapis.org/oas/v3.0.0) | Especificação da documentação |
 
 ## Instalação
 
@@ -147,3 +153,7 @@ controllers/  →  processa a lógica e devolve a resposta
 ## Anotações de estudo
 
 Todos os conceitos estudados durante o desenvolvimento — HTTP, JWT, middleware, destructuring, status codes e mais — estão documentados em [NOTES.md](NOTES.md).
+
+## Observação sobre o processo de estudo
+
+Todo o conteúdo deste projeto foi estudado e desenvolvido com auxílio de IA, mas todos os conceitos, implementações e referências foram retirados diretamente da documentação oficial de cada tecnologia. A IA foi usada como ferramenta de apoio para tirar dúvidas e guiar o raciocínio — não como fonte de verdade.
