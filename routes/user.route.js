@@ -1,11 +1,14 @@
-import {Router} from 'express';
-import { authMiddleware } from "../middlewares/auth.middlewares.js";
+import { validateSchema } from "../middlewares/validate.js";
+import { createUserSchema } from "../validators/userSchema.js";
+import { updateUserSchema } from "../validators/updateUserSchema.js";
+import { Router } from "express";
 import {
-  getUsers,
   createUser,
   deleteUser,
-  updateUser
+  getUsers,
+  updateUser,
 } from "../controllers/userController.js";
+import { authMiddleware } from "../middlewares/auth.middlewares.js";
 
 const router = Router(); // criando uma instância do Router do express
 
@@ -52,7 +55,7 @@ const router = Router(); // criando uma instância do Router do express
  *     responses:
  *       201:
  *         description: Usuário criado com sucesso
-*/
+ */
 
 /**
  * @openapi
@@ -76,7 +79,7 @@ const router = Router(); // criando uma instância do Router do express
  *         description: Token não informado ou inválido
  *       404:
  *         description: Usuário não encontrado
-*/
+ */
 
 /**
  * @openapi
@@ -117,12 +120,12 @@ const router = Router(); // criando uma instância do Router do express
  *         description: Token não informado ou inválido
  *       404:
  *         description: Usuário não encontrado
-*/
+ */
 
 router.get("/", authMiddleware, getUsers);
-router.post("/", createUser);
-router.put("/:id", authMiddleware, updateUser);
+router.post("/", validateSchema(createUserSchema), createUser);
+router.put("/:id", authMiddleware, validateSchema(updateUserSchema), updateUser);
 router.delete("/:id", authMiddleware, deleteUser);
-
+router
 
 export default router;
