@@ -728,3 +728,101 @@ const specs = swaggerJsdoc(options);
 
 export default specs;
 ```
+
+---
+
+## Validação com Zod
+
+### O que é Zod
+
+**Zod** é uma biblioteca de validação de dados. Você define o formato esperado de um objeto (schema) e o Zod verifica se os dados recebidos batem com esse formato antes de chegar no controller.
+
+Sem validação, qualquer dado pode entrar na API — email sem `@`, senha vazia, campos faltando. Com Zod, você garante que os dados são válidos antes de processá-los.
+
+### schemas — `validators/`
+
+```javascript
+import * as z from "zod";
+
+// schema para criação de usuário — todos os campos são obrigatórios
+export const createUserSchema = z.object({
+  name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
+  email: z.string().email("Email inválido"),
+  password: z.string().min(6, "A senha deve ter no mínimo 6 caracteres")
+});
+
+// schema para login — só verifica se os campos foram enviados com formato válido
+export const loginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(1, "Senha obrigatória")
+});
+```
+
+```javascript
+// schema para atualização — campos opcionais
+// permite atualizar só o nome sem precisar mandar email e senha
+export const updateUserSchema = z.object({
+  name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres").optional(),
+  email: z.string().email("Email inválido").optional(),
+  password: z.string().min(6, "A senha deve ter no mínimo 6 caracteres").optional()
+});
+```
+
+### `safeParse` vs `parse`
+
+| Método | Comportamento |
+|---|---|
+| `schema.parse(data)` | Lança exceção se inválido |
+| `schema.safeParse(data)` | Retorna `{ success, data }` ou `{ success, error }` sem lançar exceção |
+
+O `safeParse` é preferível em middlewares porque evita try/catch e o retorno é mais previsível.
+
+### Middleware de validação — `middlewares/validate.js`
+
+O middleware recebe o schema como argumento e retorna uma função que valida o body antes de chegar no controller. Se inválido, retorna `400` com os erros detalhados por campo.
+
+```javascript
+export const validateSchema = (schema) => (req, res, next) => {
+  const result = schema.safeParse(req.body);
+
+  if (!result.success) {
+    const errors = result.error.issues.map(e => ({
+      field: e.path.join("."),  // nome do campo que falhou
+      message: e.message        // mensagem definida no schema
+    }));
+
+    return res.status(400).json({
+      status: "erro",
+      message: "Dados inválidos. Verifique os campos e tente novamente.",
+      errors
+    });
+  }
+
+  next(); // validação passou — continua para o controller
+};
+```
+
+### Uso nas rotas
+
+O middleware é passado como argumento antes do controller, na ordem em que deve executar:
+
+```javascript
+// sem auth — valida só o body
+router.post("/", validateSchema(createUserSchema), createUser);
+
+// com auth — valida body e depois verifica token
+router.put("/:id", authMiddleware, validateSchema(updateUserSchema), updateUser);
+```
+
+### Exemplo de resposta com erro
+
+```json
+{
+  "status": "erro",
+  "message": "Dados inválidos. Verifique os campos e tente novamente.",
+  "errors": [
+    { "field": "email", "message": "Email inválido" },
+    { "field": "password", "message": "A senha deve ter no mínimo 6 caracteres" }
+  ]
+}
+```

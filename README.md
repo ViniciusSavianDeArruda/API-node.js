@@ -8,8 +8,9 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 - CRUD de usuários (criar, listar, atualizar e deletar)
 - Senhas criptografadas com bcrypt — nunca armazenadas ou retornadas em texto puro
 - Autenticação com JWT — login gera um token que protege rotas específicas
+- Validação de dados com Zod — campos obrigatórios, formato de email e tamanho mínimo de senha
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
-- Separação em camadas: routes → middlewares → controllers
+- Separação em camadas: routes → middlewares → controllers → validators
 
 ## Tecnologias
 
@@ -17,6 +18,7 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 - [Express](https://expressjs.com/) — framework web
 - [bcrypt](https://github.com/kelektiv/node.bcrypt.js) — criptografia de senhas
 - [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) — geração e validação de tokens JWT
+- [zod](https://zod.dev) — validação de dados de entrada
 - [dotenv](https://github.com/motdotla/dotenv) — variáveis de ambiente
 - [swagger-jsdoc](https://github.com/Surnet/swagger-jsdoc) + [swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) — documentação da API
 - [nodemon](https://github.com/remy/nodemon) — hot reload em desenvolvimento
@@ -111,7 +113,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 │   ├── authController.js      — lógica de autenticação e geração do token
 │   └── userController.js      — lógica de usuários (listar, criar, atualizar, deletar)
 ├── middlewares/
-│   └── auth.middlewares.js    — validação do token JWT em rotas protegidas
+│   ├── auth.middlewares.js    — validação do token JWT em rotas protegidas
+│   └── validate.js            — middleware de validação com Zod
+├── validators/
+│   ├── userSchema.js          — schemas de criar usuário e login
+│   └── updateUserSchema.js    — schema de atualização de usuário
 └── docs/
     └── openapi.js             — configuração do Swagger
 ```
@@ -121,11 +127,13 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 ```
 Cliente
   ↓
-server.js  →  direciona para a rota correta
+server.js     →  direciona para a rota correta
   ↓
-routes/    →  aplica middleware (se a rota exigir autenticação)
+routes/       →  aplica middlewares na ordem
   ↓
-middlewares/  →  valida o token JWT, chama next()
+validate.js   →  valida o body com Zod (se inválido → 400)
+  ↓
+authMiddleware →  valida o token JWT (se inválido → 401)
   ↓
 controllers/  →  processa a lógica e devolve a resposta
 ```
