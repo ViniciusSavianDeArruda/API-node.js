@@ -23,12 +23,14 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 
 import "dotenv/config";
 import express from "express";
+import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import specs from "./docs/openapi.js";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 
 const app = express();
+app.use(helmet()); // helmet para proteger a api de ataques, adicionando cabeçalhos de segurança
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
