@@ -9,6 +9,7 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 - Senhas criptografadas com bcrypt — nunca armazenadas ou retornadas em texto puro
 - Autenticação com JWT — login gera um token que protege rotas específicas
 - Validação de dados com Zod — campos obrigatórios, formato de email e tamanho mínimo de senha
+- Segurança de headers HTTP com Helmet — proteção contra XSS, clickjacking e outros ataques comuns
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers → validators
 
@@ -23,6 +24,7 @@ Todas as tecnologias utilizadas foram estudadas diretamente nas suas documentaç
 | bcrypt | [github.com/kelektiv/node.bcrypt.js](https://github.com/kelektiv/node.bcrypt.js) | Criptografia de senhas |
 | jsonwebtoken | [github.com/auth0/node-jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) | Geração e validação de JWT |
 | Zod | [zod.dev](https://zod.dev) | Validação de dados |
+| Helmet | [helmetjs.github.io](https://helmetjs.github.io) | Segurança de headers HTTP |
 | dotenv | [github.com/motdotla/dotenv](https://github.com/motdotla/dotenv) | Variáveis de ambiente |
 | swagger-jsdoc | [github.com/Surnet/swagger-jsdoc](https://github.com/Surnet/swagger-jsdoc) | Geração da documentação OpenAPI |
 | swagger-ui-express | [github.com/scottie1984/swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) | Interface visual do Swagger |

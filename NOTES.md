@@ -826,3 +826,35 @@ router.put("/:id", authMiddleware, validateSchema(updateUserSchema), updateUser)
   ]
 }
 ```
+
+---
+
+## Segurança de Headers — Helmet
+
+### O que é Helmet
+
+**Helmet** é um middleware que adiciona headers de segurança HTTP nas respostas da API automaticamente. Sem ele, o Express não define esses headers por padrão, deixando a API vulnerável a ataques comuns como XSS e clickjacking.
+
+### Como usar
+
+```javascript
+import helmet from "helmet";
+
+const app = express();
+app.use(helmet()); // deve vir antes das rotas
+```
+
+Uma linha é suficiente para ativar todas as proteções padrão.
+
+### Headers adicionados pelo Helmet
+
+| Header | O que faz |
+|---|---|
+| `Content-Security-Policy` | Protege contra XSS controlando de onde recursos podem ser carregados |
+| `X-Frame-Options: SAMEORIGIN` | Protege contra clickjacking — impede que a página seja exibida em iframe de outro domínio |
+| `X-Content-Type-Options: nosniff` | Impede que o navegador tente adivinhar o tipo do conteúdo |
+| `Strict-Transport-Security` | Força o uso de HTTPS nas próximas requisições |
+| `Referrer-Policy: no-referrer` | Controla quais informações são enviadas no header Referrer |
+| `X-DNS-Prefetch-Control: off` | Desativa o prefetch de DNS |
+| `X-Download-Options: noopen` | Impede que o IE abra arquivos diretamente |
+| `X-XSS-Protection: 0` | Desativa o filtro XSS antigo do navegador (substituído pelo CSP) |
