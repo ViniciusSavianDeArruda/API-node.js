@@ -858,3 +858,41 @@ Uma linha é suficiente para ativar todas as proteções padrão.
 | `X-DNS-Prefetch-Control: off` | Desativa o prefetch de DNS |
 | `X-Download-Options: noopen` | Impede que o IE abra arquivos diretamente |
 | `X-XSS-Protection: 0` | Desativa o filtro XSS antigo do navegador (substituído pelo CSP) |
+
+---
+
+## CORS — Cross-Origin Resource Sharing
+
+### O que é CORS
+
+**CORS** é um mecanismo de segurança do navegador que bloqueia requisições feitas de uma origem diferente da origem do servidor. Por padrão, um frontend em `http://localhost:5173` não pode chamar uma API em `http://localhost:3333` — o navegador bloqueia.
+
+O pacote `cors` resolve isso adicionando os headers necessários nas respostas da API para informar ao navegador quais origens são permitidas.
+
+> CORS é uma proteção do **navegador**. Ferramentas como Insomnia e Postman não são afetadas porque não são navegadores.
+
+### Como usar
+
+```javascript
+import cors from "cors";
+
+app.use(cors()); // deve vir antes das rotas
+```
+
+Sem configuração, `cors()` libera todas as origens — adequado para estudos e desenvolvimento.
+
+### Restringindo origens em produção
+
+```javascript
+app.use(cors({
+  origin: "http://localhost:5173" // só permite essa origem
+}));
+```
+
+### Headers adicionados pelo cors
+
+| Header | O que faz |
+|---|---|
+| `Access-Control-Allow-Origin` | Informa ao navegador quais origens podem acessar a API |
+| `Access-Control-Allow-Methods` | Métodos HTTP permitidos (GET, POST, PUT, DELETE...) |
+| `Access-Control-Allow-Headers` | Headers que o cliente pode enviar (ex: Authorization) |

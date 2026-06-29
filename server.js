@@ -20,7 +20,7 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 404 - Not Found - não encontrado, para indicar que o recurso solicitado não foi encontrado no servidor
 500 - Internal Server Error - erro interno do servidor, para indicar que houve um erro no servidor ao processar a requisição
 */
-
+import cors from "cors";
 import "dotenv/config";
 import express from "express";
 import helmet from "helmet";
@@ -30,8 +30,13 @@ import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 
 const app = express();
+
 app.use(helmet()); // helmet para proteger a api de ataques, adicionando cabeçalhos de segurança
+
+app.use(cors()); // cors para permitir requisições de outros domínios, quando tiver um front end separado do backend, para permitir que o frontend acesse a api
+
 app.use(express.json());
+
 app.use(express.urlencoded({ extended: true }));
 
 // rotas de autenticação
