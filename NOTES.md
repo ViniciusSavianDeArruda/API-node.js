@@ -255,18 +255,25 @@ O arquivo `.env` está no `.gitignore` e **nunca deve ser enviado ao Git**.
 ```
 projeto/
 ├── .env                             — variáveis de ambiente (não sobe no Git)
+├── .env.example                     — exemplo das variáveis necessárias
 ├── .gitignore
 ├── package.json
 ├── server.js                        — ponto de entrada, configura e inicia o servidor
 ├── users.js                         — array de usuários compartilhado entre controllers
 ├── routes/
 │   ├── auth.route.js                — rota de login
-│   └── user.route.js                — rotas de usuários
+│   └── user.route.js                — rotas de usuários (com anotações @openapi)
 ├── controllers/
 │   ├── authController.js            — lógica de autenticação e geração do token
 │   └── userController.js            — lógica de usuários (listar, criar, atualizar, deletar)
 ├── middlewares/
-│   └── auth.middlewares.js          — valida o token JWT em rotas protegidas
+│   ├── auth.middlewares.js          — valida o token JWT em rotas protegidas
+│   ├── validate.js                  — middleware de validação com Zod
+│   ├── rateLimiter.js               — limita requisições por IP
+│   └── errorHandler.js              — captura erros e devolve resposta padronizada
+├── validators/
+│   ├── userSchema.js                — schemas de criar usuário e login
+│   └── updateUserSchema.js          — schema de atualização de usuário
 └── docs/
     └── openapi.js                   — configuração do Swagger
 ```
@@ -286,13 +293,17 @@ projeto/
 ```
 Cliente faz uma requisição
        ↓
-  server.js  →  roteia para routes/
+  server.js    →  helmet, cors, limiter, express.json
        ↓
-  routes/    →  chama middleware (se a rota exigir)
+  routes/      →  aplica middlewares na ordem
        ↓
-  middlewares/ → valida token, chama next()
+  validate.js  →  valida o body com Zod (se inválido → 400)
        ↓
-  controllers/ → processa e devolve a resposta
+  authMiddleware → valida o token JWT (se inválido → 401)
+       ↓
+  controllers/ →  processa a lógica e devolve a resposta
+       ↓
+  errorHandler →  captura qualquer erro inesperado (→ 500)
 ```
 
 ---
@@ -300,8 +311,12 @@ Cliente faz uma requisição
 ## Servidor Principal — `server.js`
 
 ```javascript
+import { errorHandler } from "./middlewares/errorHandler.js";
+import { limiter } from "./middlewares/rateLimiter.js";
+import cors from "cors";
 import "dotenv/config"; // carrega o .env
 import express from "express";
+import helmet from "helmet";
 import swaggerUi from "swagger-ui-express";
 import specs from "./docs/openapi.js";
 import authRoutes from "./routes/auth.route.js";
@@ -309,24 +324,28 @@ import userRoutes from "./routes/user.route.js";
 
 const app = express();
 
-// Middleware para ler JSON no corpo da requisição
-app.use(express.json());
+app.use(helmet());    // segurança de headers HTTP
+app.use(cors());      // controle de origens permitidas
+app.use(limiter);     // limite de requisições por IP
 
-// Middleware para ler dados de formulário (application/x-www-form-urlencoded)
+// middlewares para leitura do corpo da requisição
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Rotas de autenticação — login não exige token
+// rotas de autenticação — login não exige token
 app.use("/auth", authRoutes);
 
-// Rotas de usuários — algumas exigem token (definido dentro do arquivo de rotas)
+// rotas de usuários — algumas exigem token (definido dentro do arquivo de rotas)
 app.use("/users", userRoutes);
 
 app.get("/", (req, res) => {
   res.send("Api rodando com express");
 });
 
-// Documentação Swagger — acessível em http://localhost:3333/docs
+// documentação Swagger — acessível em http://localhost:3333/docs
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs));
+
+app.use(errorHandler); // deve ser o último app.use, captura todos os erros
 
 app.listen(3333, () => {
   console.log("Servidor rodando na porta 3333");
@@ -377,7 +396,7 @@ const router = Router();
  *       401:
  *         description: Email ou senha inválidos
  */
-router.post("/login", login);
+router.post("/login", validateSchema(loginSchema), login);
 
 export default router;
 ```
@@ -442,7 +461,7 @@ router.get("/", authMiddleware, getUsers);
  *       201:
  *         description: Usuário criado com sucesso
  */
-router.post("/", createUser);
+router.post("/", validateSchema(createUserSchema), createUser);
 
 /**
  * @openapi
@@ -509,7 +528,7 @@ router.delete("/:id", authMiddleware, deleteUser);
  *       404:
  *         description: Usuário não encontrado
  */
-router.put("/:id", authMiddleware, updateUser);
+router.put("/:id", authMiddleware, validateSchema(updateUserSchema), updateUser);
 
 export default router;
 ```
@@ -527,32 +546,36 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { users } from "../users.js";
 
-export const login = async (req, res) => {
-  const { email, password } = req.body;
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
 
-  // 1. verificar se o usuário existe
-  const user = users.find(u => u.email === email);
+    // 1. verificar se o usuário existe
+    const user = users.find(u => u.email === email);
 
-  if (!user) {
-    return res.status(401).json({ message: "Email ou senha inválidos" });
+    if (!user) {
+      return res.status(401).json({ message: "Email ou senha inválidos" });
+    }
+
+    // 2. verificar se a senha bate com o hash — só depois de confirmar que o user existe
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Email ou senha inválidos" });
+    }
+
+    // 3. gerar token
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // 4. devolver token
+    return res.json({ token });
+  } catch (err) {
+    next(err); // passa o erro para o errorHandler
   }
-
-  // 2. verificar se a senha bate com o hash — só depois de confirmar que o user existe
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-
-  if (!isPasswordValid) {
-    return res.status(401).json({ message: "Email ou senha inválidos" });
-  }
-
-  // 3. gerar token
-  const token = jwt.sign(
-    { id: user.id, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
-  );
-
-  // 4. devolver token
-  return res.json({ token });
 };
 ```
 
@@ -614,71 +637,87 @@ import bcrypt from "bcrypt";
 import { users } from "../users.js";
 
 // Buscar todos os usuários — remove a senha de cada usuário antes de retornar
-export const getUsers = (req, res) => {
-  const usersWithoutPassword = users.map(({ password, ...rest }) => rest);
-  return res.json(usersWithoutPassword);
+export const getUsers = (req, res, next) => {
+  try {
+    const usersWithoutPassword = users.map(({ password, ...rest }) => rest);
+    return res.json(usersWithoutPassword);
+  } catch (err) {
+    next(err);
+  }
 };
 
 // Criar usuário — gera hash da senha antes de salvar
-export const createUser = async (req, res) => {
-  const { name, email, password } = req.body;
+export const createUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
 
-  // bcrypt.hash(senha, rounds) — quanto maior o número de rounds, mais seguro e mais lento
-  const hashedPassword = await bcrypt.hash(password, 10);
+    // bcrypt.hash(senha, rounds) — quanto maior o número de rounds, mais seguro e mais lento
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = {
-    id: users.length + 1,
-    name,
-    email,
-    password: hashedPassword // armazena o hash, nunca a senha em texto puro
-  };
+    const user = {
+      id: users.length + 1,
+      name,
+      email,
+      password: hashedPassword // armazena o hash, nunca a senha em texto puro
+    };
 
-  users.push(user);
+    users.push(user);
 
-  return res.status(201).json({
-    id: user.id,
-    name: user.name,
-    email: user.email
-  }); // 201 Created — não retorna a senha nem o hash
+    return res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email
+    }); // 201 Created — não retorna a senha nem o hash
+  } catch (err) {
+    next(err);
+  }
 };
 
 // Atualizar usuário — também gera hash se a senha for alterada
-export const updateUser = async (req, res) => {
-  const { id } = req.params;
-  const { name, email, password } = req.body;
+export const updateUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password } = req.body;
 
-  const user = users.find(u => u.id == id);
+    const user = users.find(u => u.id == id);
 
-  if (!user) {
-    return res.status(404).json({ message: "Usuário não encontrado" });
+    if (!user) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    user.name = name;
+    user.email = email;
+    user.password = hashedPassword;
+
+    return res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email
+    }); // não retorna a senha
+  } catch (err) {
+    next(err);
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  user.name = name;
-  user.email = email;
-  user.password = hashedPassword;
-
-  return res.json({
-    id: user.id,
-    name: user.name,
-    email: user.email
-  }); // não retorna a senha
 };
 
 // Deletar usuário
-export const deleteUser = (req, res) => {
-  const { id } = req.params;
+export const deleteUser = (req, res, next) => {
+  try {
+    const { id } = req.params;
 
-  const index = users.findIndex(user => user.id == id);
+    const index = users.findIndex(user => user.id == id);
 
-  if (index === -1) {
-    return res.status(404).json({ message: "Usuário não encontrado" });
+    if (index === -1) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    users.splice(index, 1);
+
+    return res.sendStatus(204); // 204 No Content
+  } catch (err) {
+    next(err);
   }
-
-  users.splice(index, 1);
-
-  return res.sendStatus(204); // 204 No Content
 };
 ```
 
@@ -702,7 +741,7 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "API Node Estudos",
+      title: "API REST - Gerenciamento de Usuários",
       version: "1.0.0",
       description: "Documentação da API com OpenAPI",
     },
@@ -990,3 +1029,235 @@ export const createUser = async (req, res, next) => {
 ```
 
 Sem o `try/catch` com `next(err)`, erros em funções `async` não chegam ao `errorHandler` — o servidor simplesmente trava sem resposta.
+
+---
+
+## Banco de Dados — PostgreSQL com pg
+
+### Por que trocar o array pelo banco
+
+O array `users` em memória funcionou bem para aprender os conceitos — rotas, controllers, middlewares, autenticação e validação podiam ser estudados sem a complexidade de um banco. Mas tem uma limitação crítica: **os dados somem quando o servidor reinicia**.
+
+Com o PostgreSQL, os dados ficam persistidos em disco. A arquitetura da API (routes → middlewares → controllers) não muda — só a camada de acesso aos dados muda.
+
+### O que mudou
+
+| Antes (array) | Depois (banco) |
+|---|---|
+| `import { users } from "../users.js"` | `import { pool } from "../config/db.js"` |
+| `users.find(u => u.email === email)` | `pool.query("SELECT * FROM users WHERE email = $1", [email])` |
+| `users.push(user)` | `pool.query("INSERT INTO users ...")` |
+| `users.findIndex(...)` + `splice` | `pool.query("DELETE FROM users WHERE id = $1 ...")` |
+| Dados somem ao reiniciar | Dados persistidos no banco |
+
+### Pacote utilizado
+
+**pg** (node-postgres) — cliente PostgreSQL para Node.js. Executa SQL puro, sem ORM.
+
+```bash
+npm install pg
+```
+
+### Conexão com o banco — `config/db.js`
+
+O `Pool` gerencia um conjunto de conexões reutilizáveis. Em vez de abrir e fechar uma conexão a cada query, o pool mantém conexões abertas e as distribui conforme necessário.
+
+```javascript
+import pg from "pg";
+
+const { Pool } = pg;
+
+export const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+```
+
+As variáveis ficam no `.env`:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=sua_senha_aqui
+DB_NAME=api_node
+```
+
+### Criação da tabela — `database/createUserTable.js`
+
+Script executado uma vez para criar a tabela no banco. `IF NOT EXISTS` garante que não quebra se a tabela já existir.
+
+```javascript
+import "dotenv/config";
+import { pool } from "../config/db.js";
+
+const createUsersTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      email VARCHAR(100) UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  console.log("Tabela users criada com sucesso");
+  await pool.end();
+};
+
+createUsersTable();
+```
+
+```bash
+node database/createUserTable.js
+```
+
+### Queries parametrizadas — `$1, $2, $3`
+
+Os valores nunca são interpolados diretamente na string SQL. São passados como array separado — o `pg` faz o escape automaticamente, prevenindo SQL Injection.
+
+```javascript
+// correto — valor separado da query
+pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+// errado — concatenação abre brecha para SQL Injection
+pool.query("SELECT * FROM users WHERE email = '" + email + "'");
+```
+
+### Controller de usuários com banco — `controllers/userController.js`
+
+```javascript
+import bcrypt from "bcrypt";
+import { pool } from "../config/db.js";
+
+// Buscar todos os usuários — não retorna a senha
+export const getUsers = async (req, res, next) => {
+  try {
+    const result = await pool.query("SELECT id, name, email, created_at FROM users");
+    return res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Criar usuário — gera hash da senha antes de salvar
+export const createUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email",
+      [name, email, hashedPassword]
+    );
+
+    return res.status(201).json(result.rows[0]); // não retorna a senha
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Atualizar usuário
+export const updateUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password } = req.body;
+
+    const existing = await pool.query("SELECT id FROM users WHERE id = $1", [id]);
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4 RETURNING id, name, email",
+      [name, email, hashedPassword, id]
+    );
+
+    return res.json(result.rows[0]); // não retorna a senha
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Deletar usuário
+export const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      "DELETE FROM users WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    return res.sendStatus(204); // 204 No Content
+  } catch (err) {
+    next(err);
+  }
+};
+```
+
+### Controller de autenticação com banco — `controllers/authController.js`
+
+```javascript
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { pool } from "../config/db.js";
+
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // 1. busca o usuário pelo email no banco
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({ message: "Email ou senha inválidos" });
+    }
+
+    // 2. verifica se a senha bate com o hash
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Email ou senha inválidos" });
+    }
+
+    // 3. gerar token
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // 4. devolver token
+    return res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+};
+```
+
+### result.rows
+
+O `pg` devolve sempre um objeto `result`. Os dados ficam em `result.rows` — um array de objetos, um por linha retornada.
+
+```javascript
+const result = await pool.query("SELECT * FROM users");
+result.rows       // array com todos os usuários
+result.rows[0]    // primeiro usuário
+result.rows.length // quantidade de linhas retornadas
+```
+
+O `RETURNING` no `INSERT`, `UPDATE` e `DELETE` faz o PostgreSQL devolver os dados da linha afetada — sem precisar fazer uma segunda query para buscar o registro recém-criado.

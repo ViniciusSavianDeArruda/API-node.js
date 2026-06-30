@@ -1,20 +1,17 @@
 import bcrypt from "bcrypt";
-import { users } from "../users.js";
+import { pool } from "../config/db.js";
 
-export const getUsers = (req, res, next) => {
+// Buscar todos os usuários — não retorna a senha
+export const getUsers = async (req, res, next) => {
   try {
-    const usersWithoutPassword = users.map(({ password, ...rest }) => rest);
-    return res.json(usersWithoutPassword);
+    const result = await pool.query("SELECT id, name, email, created_at FROM users");
+    return res.json(result.rows);
   } catch (err) {
-    next(err); // passa o erro para o errorHandler
+    next(err);
   }
 }
 
-
-//BODY - corpo da requisição, o que o cliente manda para o servidor
-//PARAMS - parametros da rota, o que o cliente manda para o servidor na url
-
-//criar usuario
+// Criar usuário — gera hash da senha antes de salvar
 export const createUser = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -22,71 +19,57 @@ export const createUser = async (req, res, next) => {
     // transforma a senha em hash antes de salvar
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = {
-      id: users.length + 1,
-      name,
-      email,
-      password: hashedPassword // armazena o hash, nunca a senha em texto puro
-    };
+    const result = await pool.query(
+      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email",
+      [name, email, hashedPassword]
+    );
 
-    users.push(user);
-
-    return res.status(201).json({ // 201 Created — não retorna a senha nem o hash
-      id: user.id,
-      name: user.name,
-      email: user.email
-    });
+    return res.status(201).json(result.rows[0]); // 201 Created — não retorna a senha
   } catch (err) {
-    next(err); // passa o erro para o errorHandler
+    next(err);
   }
 }
 
-//editar usuario
+// Atualizar usuário
 export const updateUser = async (req, res, next) => {
   try {
     const { id } = req.params; // id vem na URL: PUT /users/:id
     const { name, email, password } = req.body;
 
-    const user = users.find(u => u.id == id);
+    // verifica se o usuário existe
+    const existing = await pool.query("SELECT id FROM users WHERE id = $1", [id]);
 
-    if (!user) {
+    if (existing.rows.length === 0) {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
-    // gera novo hash se a senha for alterada
+    // gera novo hash da senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    user.name = name;
-    user.email = email;
-    user.password = hashedPassword;
+    const result = await pool.query(
+      "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4 RETURNING id, name, email",
+      [name, email, hashedPassword, id]
+    );
 
-    return res.json({
-      id: user.id,
-      name: user.name,
-      email: user.email // não retorna a senha
-    });
+    return res.json(result.rows[0]); // não retorna a senha
   } catch (err) {
-    next(err); // passa o erro para o errorHandler
+    next(err);
   }
 }
 
-
-//Deletar usuario
-export const deleteUser = (req, res, next) => {
+// Deletar usuário
+export const deleteUser = async (req, res, next) => {
   try {
     const { id } = req.params; // id vem na URL: DELETE /users/:id
 
-    // findIndex retorna -1 se não encontrar
-    const index = users.findIndex(user => user.id == id);
+    const result = await pool.query("DELETE FROM users WHERE id = $1 RETURNING id", [id]);
 
-    if (index === -1) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
-    users.splice(index, 1); // remove o usuário do array
-
     return res.sendStatus(204); // 204 No Content — sem corpo na resposta
   } catch (err) {
-    next(err); // passa o erro para o errorHandler
+    next(err);
   }
 }
