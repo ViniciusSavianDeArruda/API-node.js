@@ -284,6 +284,7 @@ projeto/
 |----------|-----------------|---------|----------------------------|
 | `POST`   | `/auth/login`   | Não     | Gera um token JWT          |
 | `GET`    | `/users`        | **Sim** | Lista todos os usuários    |
+| `GET`    | `/users/:id`    | **Sim** | Busca um usuário por ID    |
 | `POST`   | `/users`        | Não     | Cria um novo usuário       |
 | `PUT`    | `/users/:id`    | **Sim** | Atualiza um usuário        |
 | `DELETE` | `/users/:id`    | **Sim** | Remove um usuário          |
@@ -1139,6 +1140,28 @@ export const getUsers = async (req, res, next) => {
   try {
     const result = await pool.query("SELECT id, name, email, created_at FROM users");
     return res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Buscar usuário por ID
+export const getUserId = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { rows } = await pool.query(
+      "SELECT id, name, email, created_at FROM users WHERE id = $1",
+      [id]
+    );
+
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    return res.status(200).json(user);
   } catch (err) {
     next(err);
   }
