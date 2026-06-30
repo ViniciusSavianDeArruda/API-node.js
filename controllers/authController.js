@@ -1,20 +1,21 @@
 import jwt from "jsonwebtoken";
-import { users } from "../users.js";
 import bcrypt from "bcrypt";
+import { pool } from "../config/db.js";
 
 // função de login
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // 1. verificar se o usuário existe
-    const user = users.find(u => u.email === email);
+    // 1. busca o usuário pelo email no banco
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(401).json({ message: "Email ou senha inválidos" });
     }
 
-    // 2. verificar se a senha bate com o hash
+    // 2. verifica se a senha bate com o hash
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
