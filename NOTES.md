@@ -896,3 +896,44 @@ app.use(cors({
 | `Access-Control-Allow-Origin` | Informa ao navegador quais origens podem acessar a API |
 | `Access-Control-Allow-Methods` | Métodos HTTP permitidos (GET, POST, PUT, DELETE...) |
 | `Access-Control-Allow-Headers` | Headers que o cliente pode enviar (ex: Authorization) |
+
+---
+
+## Rate Limiting — express-rate-limit
+
+### O que é Rate Limiting
+
+**Rate limiting** limita o número de requisições que um mesmo IP pode fazer em um intervalo de tempo. Sem ele, qualquer pessoa pode tentar milhares de combinações de senha no endpoint de login sem nenhuma barreira — um ataque de força bruta.
+
+### Como usar
+
+```javascript
+import rateLimit from "express-rate-limit";
+
+export const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // janela de 15 minutos
+  limit: 100,                // máximo de 100 requisições por IP na janela
+  message: {
+    status: "erro",
+    message: "Muitas requisições. Tente novamente em 15 minutos."
+  }
+});
+```
+
+```javascript
+// server.js — aplica em todas as rotas
+app.use(limiter);
+```
+
+### O que acontece quando o limite é atingido
+
+O servidor devolve `429 Too Many Requests` com a mensagem configurada. O cliente precisa aguardar o fim da janela de tempo para fazer novas requisições.
+
+### windowMs e limit
+
+| Opção | O que define |
+|---|---|
+| `windowMs` | Duração da janela de tempo em milissegundos |
+| `limit` | Número máximo de requisições permitidas na janela |
+
+Com `windowMs: 15 * 60 * 1000` e `limit: 100`, cada IP pode fazer no máximo 100 requisições a cada 15 minutos.
