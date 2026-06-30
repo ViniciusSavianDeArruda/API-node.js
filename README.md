@@ -12,6 +12,7 @@ Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo
 - Segurança de headers HTTP com Helmet — proteção contra XSS, clickjacking e outros ataques comuns
 - CORS configurado com o pacote `cors` — controla quais origens podem acessar a API
 - Rate limiting com `express-rate-limit` — limita requisições por IP para proteger contra força bruta
+- Tratamento global de erros — middleware centralizado que captura erros inesperados e devolve resposta padronizada
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers → validators
 

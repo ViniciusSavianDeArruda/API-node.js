@@ -937,3 +937,56 @@ O servidor devolve `429 Too Many Requests` com a mensagem configurada. O cliente
 | `limit` | Número máximo de requisições permitidas na janela |
 
 Com `windowMs: 15 * 60 * 1000` e `limit: 100`, cada IP pode fazer no máximo 100 requisições a cada 15 minutos.
+
+---
+
+## Tratamento Global de Erros
+
+### O que é
+
+Em vez de tratar cada erro individualmente nos controllers com `res.status(500).json(...)`, o Express permite registrar um middleware especial no final que centraliza todos os erros. Isso garante que qualquer erro inesperado devolva sempre a mesma estrutura de resposta.
+
+### O middleware de erro
+
+O middleware de erro tem **4 parâmetros** — essa é a assinatura que o Express usa para identificá-lo como handler de erro:
+
+```javascript
+export const errorHandler = (err, req, res, next) => {
+  const status = err.status || 500;
+  const message = err.message || "Erro interno do servidor";
+
+  return res.status(status).json({
+    status: "erro",
+    message
+  });
+};
+```
+
+- `err.status` — permite lançar erros com status personalizado (ex: `404`, `403`)
+- `err.message` — a mensagem do erro
+- Se não tiver `status` ou `message`, usa os valores padrão (`500` e `"Erro interno do servidor"`)
+
+### Registro no server.js
+
+Deve ser o **último** `app.use`, depois de todas as rotas:
+
+```javascript
+app.use(errorHandler); // sempre o último
+app.listen(3333, ...);
+```
+
+### Como usar nos controllers
+
+Os controllers passam o erro com `next(err)` dentro do `catch`:
+
+```javascript
+export const createUser = async (req, res, next) => {
+  try {
+    // lógica normal
+  } catch (err) {
+    next(err); // passa para o errorHandler
+  }
+};
+```
+
+Sem o `try/catch` com `next(err)`, erros em funções `async` não chegam ao `errorHandler` — o servidor simplesmente trava sem resposta.
