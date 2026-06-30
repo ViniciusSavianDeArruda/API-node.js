@@ -21,6 +21,7 @@ API REST para gerenciamento de usuários desenvolvida com Node.js e Express, com
 - CORS configurado com o pacote `cors` — controla quais origens podem acessar a API
 - Rate limiting com `express-rate-limit` — limita requisições por IP para proteger contra força bruta
 - Tratamento global de erros — middleware centralizado que captura erros inesperados e devolve resposta padronizada
+- Banco de dados PostgreSQL com `pg` — dados persistidos, substituindo o array em memória
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers → validators
 
@@ -38,6 +39,8 @@ Todas as tecnologias utilizadas foram estudadas diretamente nas suas documentaç
 | Helmet | [helmetjs.github.io](https://helmetjs.github.io) | Segurança de headers HTTP |
 | cors | [github.com/expressjs/cors](https://github.com/expressjs/cors) | Controle de origens permitidas |
 | express-rate-limit | [github.com/express-rate-limit/express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | Rate limiting por IP |
+| pg | [node-postgres.com](https://node-postgres.com) | Cliente PostgreSQL para Node.js |
+| PostgreSQL | [postgresql.org/docs](https://www.postgresql.org/docs/) | Banco de dados relacional |
 | dotenv | [github.com/motdotla/dotenv](https://github.com/motdotla/dotenv) | Variáveis de ambiente |
 | swagger-jsdoc | [github.com/Surnet/swagger-jsdoc](https://github.com/Surnet/swagger-jsdoc) | Geração da documentação OpenAPI |
 | swagger-ui-express | [github.com/scottie1984/swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) | Interface visual do Swagger |
@@ -50,13 +53,25 @@ Todas as tecnologias utilizadas foram estudadas diretamente nas suas documentaç
 npm install
 ```
 
-Crie um arquivo `.env` na raiz do projeto com a chave do JWT:
+Crie um arquivo `.env` na raiz do projeto baseado no `.env.example`:
 
 ```env
 JWT_SECRET=sua_chave_secreta_aqui
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=sua_senha_aqui
+DB_NAME=api_node
 ```
 
 > O arquivo `.env` está no `.gitignore` e nunca deve ser enviado ao Git.
+
+Crie a tabela de usuários no banco:
+
+```bash
+node database/createUserTable.js
+```
 
 ## Como rodar
 
@@ -123,10 +138,14 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 
 ```
 ├── .env                       — variáveis de ambiente (não sobe no Git)
+├── .env.example               — exemplo das variáveis necessárias
 ├── .gitignore
 ├── package.json
 ├── server.js                  — ponto de entrada, configura e inicia o servidor
-├── users.js                   — array de usuários compartilhado em memória
+├── config/
+│   └── db.js                  — conexão com o banco PostgreSQL via Pool
+├── database/
+│   └── createUserTable.js     — script para criar a tabela users no banco
 ├── routes/
 │   ├── auth.route.js          — rota de login
 │   └── user.route.js          — rotas de usuários (com anotações @openapi)
@@ -135,7 +154,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 │   └── userController.js      — lógica de usuários (listar, criar, atualizar, deletar)
 ├── middlewares/
 │   ├── auth.middlewares.js    — validação do token JWT em rotas protegidas
-│   └── validate.js            — middleware de validação com Zod
+│   ├── validate.js            — middleware de validação com Zod
+│   ├── rateLimiter.js         — limite de requisições por IP
+│   └── errorHandler.js        — captura erros e devolve resposta padronizada
 ├── validators/
 │   ├── userSchema.js          — schemas de criar usuário e login
 │   └── updateUserSchema.js    — schema de atualização de usuário
@@ -148,20 +169,22 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 ```
 Cliente
   ↓
-server.js     →  direciona para a rota correta
+server.js      →  helmet, cors, limiter, express.json
   ↓
-routes/       →  aplica middlewares na ordem
+routes/        →  aplica middlewares na ordem
   ↓
-validate.js   →  valida o body com Zod (se inválido → 400)
+validate.js    →  valida o body com Zod (se inválido → 400)
   ↓
 authMiddleware →  valida o token JWT (se inválido → 401)
   ↓
-controllers/  →  processa a lógica e devolve a resposta
+controllers/   →  executa query no PostgreSQL e devolve a resposta
+  ↓
+errorHandler   →  captura qualquer erro inesperado (→ 500)
 ```
 
 ## Observações
 
-- Os dados dos usuários ficam em memória (array em `users.js`). Ao reiniciar o servidor, os dados são perdidos — banco de dados é um próximo passo nos estudos.
+- Os dados são persistidos no PostgreSQL — não se perdem ao reiniciar o servidor.
 - As anotações `@openapi` ficam diretamente nos arquivos de rota. O `swagger-jsdoc` lê esses comentários automaticamente e monta a documentação sem precisar editar o `openapi.js` a cada nova rota.
 - Para testar rotas protegidas no Swagger: faça login em `POST /auth/login`, copie o token da resposta, clique em **Authorize** no topo da página e cole o token. A partir daí o Swagger manda o token automaticamente em todas as requisições.
 

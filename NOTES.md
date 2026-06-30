@@ -1029,3 +1029,235 @@ export const createUser = async (req, res, next) => {
 ```
 
 Sem o `try/catch` com `next(err)`, erros em funções `async` não chegam ao `errorHandler` — o servidor simplesmente trava sem resposta.
+
+---
+
+## Banco de Dados — PostgreSQL com pg
+
+### Por que trocar o array pelo banco
+
+O array `users` em memória funcionou bem para aprender os conceitos — rotas, controllers, middlewares, autenticação e validação podiam ser estudados sem a complexidade de um banco. Mas tem uma limitação crítica: **os dados somem quando o servidor reinicia**.
+
+Com o PostgreSQL, os dados ficam persistidos em disco. A arquitetura da API (routes → middlewares → controllers) não muda — só a camada de acesso aos dados muda.
+
+### O que mudou
+
+| Antes (array) | Depois (banco) |
+|---|---|
+| `import { users } from "../users.js"` | `import { pool } from "../config/db.js"` |
+| `users.find(u => u.email === email)` | `pool.query("SELECT * FROM users WHERE email = $1", [email])` |
+| `users.push(user)` | `pool.query("INSERT INTO users ...")` |
+| `users.findIndex(...)` + `splice` | `pool.query("DELETE FROM users WHERE id = $1 ...")` |
+| Dados somem ao reiniciar | Dados persistidos no banco |
+
+### Pacote utilizado
+
+**pg** (node-postgres) — cliente PostgreSQL para Node.js. Executa SQL puro, sem ORM.
+
+```bash
+npm install pg
+```
+
+### Conexão com o banco — `config/db.js`
+
+O `Pool` gerencia um conjunto de conexões reutilizáveis. Em vez de abrir e fechar uma conexão a cada query, o pool mantém conexões abertas e as distribui conforme necessário.
+
+```javascript
+import pg from "pg";
+
+const { Pool } = pg;
+
+export const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+```
+
+As variáveis ficam no `.env`:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=sua_senha_aqui
+DB_NAME=api_node
+```
+
+### Criação da tabela — `database/createUserTable.js`
+
+Script executado uma vez para criar a tabela no banco. `IF NOT EXISTS` garante que não quebra se a tabela já existir.
+
+```javascript
+import "dotenv/config";
+import { pool } from "../config/db.js";
+
+const createUsersTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      email VARCHAR(100) UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  console.log("Tabela users criada com sucesso");
+  await pool.end();
+};
+
+createUsersTable();
+```
+
+```bash
+node database/createUserTable.js
+```
+
+### Queries parametrizadas — `$1, $2, $3`
+
+Os valores nunca são interpolados diretamente na string SQL. São passados como array separado — o `pg` faz o escape automaticamente, prevenindo SQL Injection.
+
+```javascript
+// correto — valor separado da query
+pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+// errado — concatenação abre brecha para SQL Injection
+pool.query("SELECT * FROM users WHERE email = '" + email + "'");
+```
+
+### Controller de usuários com banco — `controllers/userController.js`
+
+```javascript
+import bcrypt from "bcrypt";
+import { pool } from "../config/db.js";
+
+// Buscar todos os usuários — não retorna a senha
+export const getUsers = async (req, res, next) => {
+  try {
+    const result = await pool.query("SELECT id, name, email, created_at FROM users");
+    return res.json(result.rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Criar usuário — gera hash da senha antes de salvar
+export const createUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      "INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email",
+      [name, email, hashedPassword]
+    );
+
+    return res.status(201).json(result.rows[0]); // não retorna a senha
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Atualizar usuário
+export const updateUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password } = req.body;
+
+    const existing = await pool.query("SELECT id FROM users WHERE id = $1", [id]);
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      "UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4 RETURNING id, name, email",
+      [name, email, hashedPassword, id]
+    );
+
+    return res.json(result.rows[0]); // não retorna a senha
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Deletar usuário
+export const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      "DELETE FROM users WHERE id = $1 RETURNING id",
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Usuário não encontrado" });
+    }
+
+    return res.sendStatus(204); // 204 No Content
+  } catch (err) {
+    next(err);
+  }
+};
+```
+
+### Controller de autenticação com banco — `controllers/authController.js`
+
+```javascript
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { pool } from "../config/db.js";
+
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // 1. busca o usuário pelo email no banco
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({ message: "Email ou senha inválidos" });
+    }
+
+    // 2. verifica se a senha bate com o hash
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: "Email ou senha inválidos" });
+    }
+
+    // 3. gerar token
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    // 4. devolver token
+    return res.json({ token });
+  } catch (err) {
+    next(err);
+  }
+};
+```
+
+### result.rows
+
+O `pg` devolve sempre um objeto `result`. Os dados ficam em `result.rows` — um array de objetos, um por linha retornada.
+
+```javascript
+const result = await pool.query("SELECT * FROM users");
+result.rows       // array com todos os usuários
+result.rows[0]    // primeiro usuário
+result.rows.length // quantidade de linhas retornadas
+```
+
+O `RETURNING` no `INSERT`, `UPDATE` e `DELETE` faz o PostgreSQL devolver os dados da linha afetada — sem precisar fazer uma segunda query para buscar o registro recém-criado.
