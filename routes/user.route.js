@@ -7,10 +7,11 @@ import {
   deleteUser,
   getUsers,
   updateUser,
+  getUserId
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middlewares/auth.middlewares.js";
 
-const router = Router(); // criando uma instância do Router do express
+const router = Router();
 
 /**
  * @openapi
@@ -27,6 +28,32 @@ const router = Router(); // criando uma instância do Router do express
  *       401:
  *         description: Token não informado ou inválido
  */
+router.get("/", authMiddleware, getUsers);
+
+/**
+ * @openapi
+ * /users/{id}:
+ *   get:
+ *     summary: Busca um usuário pelo ID
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Usuário encontrado
+ *       401:
+ *         description: Token não informado ou inválido
+ *       404:
+ *         description: Usuário não encontrado
+ */
+router.get("/:id", authMiddleware, getUserId);
 
 /**
  * @openapi
@@ -56,30 +83,7 @@ const router = Router(); // criando uma instância do Router do express
  *       201:
  *         description: Usuário criado com sucesso
  */
-
-/**
- * @openapi
- * /users/{id}:
- *   delete:
- *     summary: Remove um usuário
- *     tags:
- *       - Users
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *     responses:
- *       204:
- *         description: Usuário removido
- *       401:
- *         description: Token não informado ou inválido
- *       404:
- *         description: Usuário não encontrado
- */
+router.post("/", validateSchema(createUserSchema), createUser);
 
 /**
  * @openapi
@@ -121,11 +125,31 @@ const router = Router(); // criando uma instância do Router do express
  *       404:
  *         description: Usuário não encontrado
  */
-
-router.get("/", authMiddleware, getUsers);
-router.post("/", validateSchema(createUserSchema), createUser);
 router.put("/:id", authMiddleware, validateSchema(updateUserSchema), updateUser);
+
+/**
+ * @openapi
+ * /users/{id}:
+ *   delete:
+ *     summary: Remove um usuário
+ *     tags:
+ *       - Users
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Usuário removido
+ *       401:
+ *         description: Token não informado ou inválido
+ *       404:
+ *         description: Usuário não encontrado
+ */
 router.delete("/:id", authMiddleware, deleteUser);
-router
 
 export default router;

@@ -57,6 +57,31 @@ export const updateUser = async (req, res, next) => {
   }
 }
 
+
+// Buscar usuário por ID
+export const getUserId = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const { rows } = await pool.query(
+      "SELECT id, name, email, created_at FROM users WHERE id = $1",
+      [id]
+    );
+
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Usuário não encontrado"
+      });
+    }
+
+    return res.status(200).json(user);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Deletar usuário
 export const deleteUser = async (req, res, next) => {
   try {
