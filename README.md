@@ -1,9 +1,17 @@
 # API REST com Node.js e Express
 
-Projeto de estudo de desenvolvimento de APIs REST com Node.js. Estou construindo essa API do zero para aprender na prática os conceitos de rotas, controllers, middlewares, autenticação JWT e documentação com Swagger. O projeto está em constante evolução conforme avanço nos estudos.
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
+![Zod](https://img.shields.io/badge/Zod-3E67B1?style=for-the-badge&logo=zod&logoColor=white)
+![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
+![npm](https://img.shields.io/badge/npm-CB3837?style=for-the-badge&logo=npm&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+
+API REST para gerenciamento de usuários desenvolvida com Node.js e Express, com foco em segurança e boas práticas. Conta com autenticação JWT, senhas criptografadas com bcrypt, validação de entrada com Zod, proteção de headers com Helmet e rate limiting. A arquitetura é organizada em camadas e a documentação é gerada via OpenAPI/Swagger.
 
 ## O que foi implementado até agora
-
 - Servidor Express com suporte a JSON e form data
 - CRUD de usuários (criar, listar, atualizar e deletar)
 - Senhas criptografadas com bcrypt — nunca armazenadas ou retornadas em texto puro
