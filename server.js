@@ -20,6 +20,7 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 404 - Not Found - não encontrado, para indicar que o recurso solicitado não foi encontrado no servidor
 500 - Internal Server Error - erro interno do servidor, para indicar que houve um erro no servidor ao processar a requisição
 */
+import { limiter } from "./middlewares/rateLimiter.js";
 import cors from "cors";
 import "dotenv/config";
 import express from "express";
@@ -34,6 +35,8 @@ const app = express();
 app.use(helmet()); // helmet para proteger a api de ataques, adicionando cabeçalhos de segurança
 
 app.use(cors()); // cors para permitir requisições de outros domínios, quando tiver um front end separado do backend, para permitir que o frontend acesse a api
+
+app.use(limiter); // limiter para limitar o número de requisições por IP, para evitar ataques de negação de serviço (DoS)
 
 app.use(express.json());
 
