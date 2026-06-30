@@ -6,6 +6,7 @@
 ![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 ![Zod](https://img.shields.io/badge/Zod-3E67B1?style=for-the-badge&logo=zod&logoColor=white)
 ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![npm](https://img.shields.io/badge/npm-CB3837?style=for-the-badge&logo=npm&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
@@ -93,6 +94,7 @@ A documentação interativa fica em `http://localhost:3333/docs`.
 |----------|-----------------|---------|-------------------------|
 | `POST`   | `/auth/login`   | Não     | Gera um token JWT       |
 | `GET`    | `/users`        | **Sim** | Lista todos os usuários |
+| `GET`    | `/users/:id`    | **Sim** | Busca um usuário por ID |
 | `POST`   | `/users`        | Não     | Cria um novo usuário    |
 | `PUT`    | `/users/:id`    | **Sim** | Atualiza um usuário     |
 | `DELETE` | `/users/:id`    | **Sim** | Remove um usuário       |
