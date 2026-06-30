@@ -20,6 +20,7 @@ STATUS CODE - código de status da resposta, para indicar se a requisição foi 
 404 - Not Found - não encontrado, para indicar que o recurso solicitado não foi encontrado no servidor
 500 - Internal Server Error - erro interno do servidor, para indicar que houve um erro no servidor ao processar a requisição
 */
+import { errorHandler } from "./middlewares/errorHandler.js";
 import { limiter } from "./middlewares/rateLimiter.js";
 import cors from "cors";
 import "dotenv/config";
@@ -40,6 +41,7 @@ app.use(limiter); // limiter para limitar o número de requisições por IP, par
 
 app.use(express.json());
 
+
 app.use(express.urlencoded({ extended: true }));
 
 // rotas de autenticação
@@ -55,7 +57,11 @@ app.get("/", (req, res) => {
 // rota da documentação
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(specs));
 
+app.use(errorHandler); // errorHandler para tratar erros de forma padronizada, para que o cliente receba uma resposta consistente em caso de erro
+
 // inicia servidor
 app.listen(3333, () => {
   console.log("Servidor rodando na porta 3333");
 });
+
+
