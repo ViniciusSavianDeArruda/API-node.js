@@ -23,6 +23,7 @@ API REST para gerenciamento de usuários desenvolvida com Node.js e Express, com
 - Rate limiting com `express-rate-limit` — limita requisições por IP para proteger contra força bruta
 - Tratamento global de erros — middleware centralizado que captura erros inesperados e devolve resposta padronizada
 - Banco de dados PostgreSQL com `pg` — dados persistidos, substituindo o array em memória
+- Refresh Token — login devolve `accessToken` (15min) e `refreshToken` (7 dias) persistido no banco
 - Documentação interativa com OpenAPI/Swagger — com autenticação Bearer integrada (botão Authorize)
 - Separação em camadas: routes → middlewares → controllers → validators
 
@@ -92,7 +93,8 @@ A documentação interativa fica em `http://localhost:3333/docs`.
 
 | Método   | Rota            | Auth?   | Descrição               |
 |----------|-----------------|---------|-------------------------|
-| `POST`   | `/auth/login`   | Não     | Gera um token JWT       |
+| `POST`   | `/auth/login`   | Não     | Gera accessToken e refreshToken |
+| `POST`   | `/auth/refresh-token` | Não | Gera novo accessToken          |
 | `GET`    | `/users`        | **Sim** | Lista todos os usuários |
 | `GET`    | `/users/:id`    | **Sim** | Busca um usuário por ID |
 | `POST`   | `/users`        | Não     | Cria um novo usuário    |

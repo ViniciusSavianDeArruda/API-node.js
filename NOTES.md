@@ -1284,3 +1284,134 @@ result.rows.length // quantidade de linhas retornadas
 ```
 
 O `RETURNING` no `INSERT`, `UPDATE` e `DELETE` faz o PostgreSQL devolver os dados da linha afetada — sem precisar fazer uma segunda query para buscar o registro recém-criado.
+
+---
+
+## Refresh Token
+
+### O que é e por que usar
+
+O **Refresh Token** resolve um problema do JWT: tokens de curta duração expiram rápido e forçam o usuário a fazer login novamente. Com o Refresh Token, o login devolve dois tokens:
+
+- **accessToken** — curta duração (15 minutos), usado para autenticar as requisições
+- **refreshToken** — longa duração (7 dias), usado para gerar um novo `accessToken` sem precisar fazer login
+
+O `refreshToken` é salvo no banco — isso permite invalidá-lo (logout, revogação) quando necessário.
+
+### Fluxo completo
+
+```
+1. Cliente faz POST /auth/login
+2. Servidor devolve accessToken (15min) + refreshToken (7 dias)
+3. Cliente usa o accessToken nas requisições protegidas
+4. accessToken expira → cliente manda refreshToken para POST /auth/refresh-token
+5. Servidor valida o refreshToken no banco + verifica assinatura
+6. Servidor devolve novo accessToken
+7. Cliente continua sem precisar fazer login novamente
+```
+
+### Variáveis de ambiente
+
+Dois secrets separados — um para cada tipo de token:
+
+```env
+JWT_SECRET=chave_para_access_token
+JWT_REFRESH_SECRET=chave_para_refresh_token
+```
+
+Usar secrets diferentes garante que um token não possa ser usado no lugar do outro.
+
+### Tabela no banco — `refresh_tokens`
+
+```sql
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+- `user_id` referencia o usuário dono do token
+- `ON DELETE CASCADE` — se o usuário for deletado, todos os seus tokens são removidos automaticamente
+- `expires_at` — data de expiração armazenada no banco para validação futura
+
+### Controller — `controllers/authController.js`
+
+```javascript
+// login — gera e salva os dois tokens
+export const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const user = result.rows[0];
+
+    if (!user) return res.status(401).json({ message: "Email ou senha inválidos" });
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) return res.status(401).json({ message: "Email ou senha inválidos" });
+
+    // access token — curto prazo
+    const accessToken = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    // refresh token — longo prazo
+    const refreshToken = jwt.sign(
+      { id: user.id },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // salva refresh token no banco com expiração
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await pool.query(
+      "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [user.id, refreshToken, expiresAt]
+    );
+
+    return res.json({ accessToken, refreshToken });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// refresh — valida o refreshToken e gera novo accessToken
+export const refreshToken = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Refresh token não informado" });
+    }
+
+    // verifica se o token existe no banco
+    const result = await pool.query(
+      "SELECT * FROM refresh_tokens WHERE token = $1",
+      [refreshToken]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({ message: "Refresh token inválido" });
+    }
+
+    // valida a assinatura
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    // gera novo access token
+    const accessToken = jwt.sign(
+      { id: decoded.id },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    return res.json({ accessToken });
+  } catch (err) {
+    next(err);
+  }
+};
+```
